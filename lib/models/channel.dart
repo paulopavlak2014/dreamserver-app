@@ -18,7 +18,7 @@ class Channel {
     return Channel(
       id: sid,
       name: j['name'] ?? '',
-      streamUrl: '$baseUrl/live/$user/$pass/$sid.m3u8',
+      streamUrl: '$baseUrl/live/$user/$pass/$sid.ts',
       logo: j['stream_icon'],
       category: j['category_id']?.toString(),
     );
