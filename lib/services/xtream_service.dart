@@ -4,7 +4,7 @@ import '../models/channel.dart';
 
 class XtreamService {
   // ── CONFIGURAÇÃO HARDCODADA ──────────────────────────────
-  static const String baseUrl = 'https://dreamserver.shop';
+  static const String baseUrl = 'http://dreamserver.shop';
   // ────────────────────────────────────────────────────────
 
   final String username;
