@@ -15,14 +15,12 @@ const kSurface = Color(0xFF1E1E1E);
 class HomeScreen extends StatefulWidget {
   final XtreamService service;
   const HomeScreen({super.key, required this.service});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
-  bool _sidebarExpanded = false;
 
   static const _navItems = [
     _NavItem(Icons.home_rounded, 'Início'),
@@ -32,7 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _NavItem(Icons.sports_soccer_rounded, 'Esportes'),
     _NavItem(Icons.replay_rounded, 'Replay'),
     _NavItem(Icons.favorite_rounded, 'Favoritos'),
-    _NavItem(Icons.settings_rounded, 'Configurações'),
+    _NavItem(Icons.settings_rounded, 'Config'),
   ];
 
   Widget _buildPage() {
@@ -49,69 +47,50 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
-      body: Row(
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeInOut,
-            width: _sidebarExpanded ? 200 : 64,
-            color: const Color(0xFF0F0F0F),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 48),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  child: GestureDetector(
-                    onTap: () => setState(() => _sidebarExpanded = !_sidebarExpanded),
-                    child: Row(children: [
-                      const Icon(Icons.play_circle_filled, color: kRed, size: 28),
-                      if (_sidebarExpanded) ...[
-                        const SizedBox(width: 8),
-                        const Text('DREAM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 2)),
-                      ],
-                    ]),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _navItems.length,
-                    itemBuilder: (_, i) {
-                      final item = _navItems[i];
-                      final sel = _tab == i;
-                      return GestureDetector(
-                        onTap: () => setState(() => _tab = i),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: sel ? kRed.withOpacity(0.15) : Colors.transparent,
-                            borderRadius: BorderRadius.circular(10),
-                            border: sel ? Border.all(color: kRed.withOpacity(0.4)) : null,
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                          child: Row(children: [
-                            Icon(item.icon, color: sel ? kRed : Colors.grey, size: 22),
-                            if (_sidebarExpanded) ...[
-                              const SizedBox(width: 12),
-                              Text(item.label, style: TextStyle(
-                                color: sel ? Colors.white : Colors.grey,
-                                fontWeight: sel ? FontWeight.bold : FontWeight.normal,
-                                fontSize: 13,
-                              )),
-                            ],
-                          ]),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+      body: Row(children: [
+        // Sidebar — largura fixa pequena
+        Container(
+          width: 58,
+          color: const Color(0xFF0F0F0F),
+          child: Column(children: [
+            const SizedBox(height: 16),
+            // Logo
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Icon(Icons.play_circle_filled, color: kRed, size: 26),
             ),
-          ),
-          Expanded(child: _buildPage()),
-        ],
-      ),
+            const Divider(color: Colors.white12, height: 16),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _navItems.length,
+                itemBuilder: (_, i) {
+                  final item = _navItems[i];
+                  final sel = _tab == i;
+                  return Tooltip(
+                    message: item.label,
+                    preferBelow: false,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _tab = i),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: sel ? kRed.withOpacity(0.2) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: sel ? Border.all(color: kRed.withOpacity(0.5)) : null,
+                        ),
+                        child: Icon(item.icon, color: sel ? kRed : Colors.grey, size: 22),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ]),
+        ),
+        // Main content
+        Expanded(child: _buildPage()),
+      ]),
     );
   }
 }
@@ -136,7 +115,11 @@ class _HomePageState extends State<_HomePage> {
 
   Future<void> _load() async {
     final r = await Future.wait([widget.service.getLiveChannels(), widget.service.getMovies()]);
-    if (mounted) setState(() { _live = r[0] as List<Channel>; _movies = r[1] as List<Movie>; _loading = false; });
+    if (mounted) setState(() {
+      _live = r[0] as List<Channel>;
+      _movies = r[1] as List<Movie>;
+      _loading = false;
+    });
   }
 
   @override
@@ -148,28 +131,28 @@ class _HomePageState extends State<_HomePage> {
     return CustomScrollView(slivers: [
       SliverToBoxAdapter(child: _TopBar()),
       if (_live.isNotEmpty) SliverToBoxAdapter(child: _Banner(
-        channels: _live.take(5).toList(), index: _bannerIndex, controller: _pageCtrl,
-        onChanged: (i) => setState(() => _bannerIndex = i),
+        channels: _live.take(5).toList(), index: _bannerIndex,
+        controller: _pageCtrl, onChanged: (i) => setState(() => _bannerIndex = i),
       )),
       if (_live.isNotEmpty) ...[
-        SliverToBoxAdapter(child: _SectionHeader(title: 'Canais em Destaque', onVerTodos: () {})),
-        SliverToBoxAdapter(child: SizedBox(height: 110, child: ListView.builder(
+        SliverToBoxAdapter(child: _SectionHeader(title: 'Canais em Destaque')),
+        SliverToBoxAdapter(child: SizedBox(height: 100, child: ListView.builder(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           itemCount: _live.take(10).length,
           itemBuilder: (_, i) => _ChannelCard(channel: _live[i]),
         ))),
       ],
       if (_movies.isNotEmpty) ...[
-        SliverToBoxAdapter(child: _SectionHeader(title: 'Filmes e Séries Populares', onVerTodos: () {})),
-        SliverToBoxAdapter(child: SizedBox(height: 150, child: ListView.builder(
+        SliverToBoxAdapter(child: _SectionHeader(title: 'Filmes Populares')),
+        SliverToBoxAdapter(child: SizedBox(height: 140, child: ListView.builder(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           itemCount: _movies.take(10).length,
           itemBuilder: (_, i) => _MovieCard(movie: _movies[i]),
         ))),
       ],
-      const SliverToBoxAdapter(child: SizedBox(height: 32)),
+      const SliverToBoxAdapter(child: SizedBox(height: 24)),
     ]);
   }
 }
@@ -177,20 +160,20 @@ class _HomePageState extends State<_HomePage> {
 class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 48, 16, 8),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       child: Row(children: [
+        const Text('DREAM', style: TextStyle(color: kRed, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 3)),
         const Spacer(),
-        IconButton(icon: const Icon(Icons.search, color: Colors.white), onPressed: () {}),
-        IconButton(icon: const Icon(Icons.notifications_none, color: Colors.white), onPressed: () {}),
-        const SizedBox(width: 4),
+        IconButton(icon: const Icon(Icons.search, color: Colors.white, size: 20), onPressed: () {}),
+        IconButton(icon: const Icon(Icons.notifications_none, color: Colors.white, size: 20), onPressed: () {}),
         Row(children: [
-          Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
-          const SizedBox(width: 6),
-          const Text('Conectado', style: TextStyle(color: Colors.green, fontSize: 11)),
+          Container(width: 7, height: 7, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
+          const SizedBox(width: 4),
+          const Text('Online', style: TextStyle(color: Colors.green, fontSize: 10)),
         ]),
-        const SizedBox(width: 12),
-        const CircleAvatar(backgroundColor: kRed, radius: 16, child: Icon(Icons.person, color: Colors.white, size: 18)),
+        const SizedBox(width: 8),
+        const CircleAvatar(backgroundColor: kRed, radius: 14, child: Icon(Icons.person, color: Colors.white, size: 16)),
       ]),
     );
   }
@@ -206,16 +189,14 @@ class _Banner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         child: SizedBox(
-          height: 200,
+          height: 160,
           child: Stack(children: [
             PageView.builder(
-              controller: controller,
-              onPageChanged: onChanged,
-              itemCount: channels.length,
+              controller: controller, onPageChanged: onChanged, itemCount: channels.length,
               itemBuilder: (_, i) {
                 final ch = channels[i];
                 return Stack(fit: StackFit.expand, children: [
@@ -228,30 +209,31 @@ class _Banner extends StatelessWidget {
                     colors: [Colors.transparent, Colors.black87],
                   ))),
                   Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(16),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(color: kRed, borderRadius: BorderRadius.circular(4)),
-                        child: const Row(children: [
-                          Icon(Icons.circle, color: Colors.white, size: 6),
-                          SizedBox(width: 4),
-                          Text('AO VIVO', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.circle, color: Colors.white, size: 5),
+                          SizedBox(width: 3),
+                          Text('AO VIVO', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
                         ]),
                       ),
+                      const SizedBox(height: 6),
+                      Text(ch.name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      Text(ch.name, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
                       ElevatedButton.icon(
                         onPressed: () => Navigator.push(context, MaterialPageRoute(
                           builder: (_) => PlayerScreen(title: ch.name, url: ch.streamUrl),
                         )),
-                        icon: const Icon(Icons.play_arrow, size: 18),
-                        label: const Text('Assistir Agora'),
+                        icon: const Icon(Icons.play_arrow, size: 16),
+                        label: const Text('Assistir', style: TextStyle(fontSize: 12)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: kRed, foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                       ),
                     ]),
@@ -260,10 +242,10 @@ class _Banner extends StatelessWidget {
               },
             ),
             Positioned(
-              bottom: 12, right: 16,
+              bottom: 10, right: 12,
               child: Row(children: List.generate(channels.length, (i) => Container(
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: i == index ? 16 : 6, height: 6,
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                width: i == index ? 14 : 5, height: 5,
                 decoration: BoxDecoration(color: i == index ? kRed : Colors.white38, borderRadius: BorderRadius.circular(3)),
               ))),
             ),
@@ -276,19 +258,17 @@ class _Banner extends StatelessWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String title;
-  final VoidCallback onVerTodos;
-  const _SectionHeader({required this.title, required this.onVerTodos});
-
+  const _SectionHeader({required this.title});
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
       child: Row(children: [
-        Container(width: 3, height: 18, decoration: BoxDecoration(color: kRed, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(width: 8),
-        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+        Container(width: 3, height: 16, decoration: BoxDecoration(color: kRed, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 7),
+        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
         const Spacer(),
-        GestureDetector(onTap: onVerTodos, child: const Text('Ver todos >', style: TextStyle(color: kRed, fontSize: 12))),
+        const Text('Ver todos >', style: TextStyle(color: kRed, fontSize: 11)),
       ]),
     );
   }
@@ -297,7 +277,6 @@ class _SectionHeader extends StatelessWidget {
 class _ChannelCard extends StatelessWidget {
   final Channel channel;
   const _ChannelCard({required this.channel});
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -305,31 +284,27 @@ class _ChannelCard extends StatelessWidget {
         builder: (_) => PlayerScreen(title: channel.name, url: channel.streamUrl),
       )),
       child: Container(
-        width: 130, margin: const EdgeInsets.only(right: 10),
+        width: 120, margin: const EdgeInsets.only(right: 8),
         decoration: BoxDecoration(color: kCard, borderRadius: BorderRadius.circular(10)),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(10),
           child: Stack(children: [
             channel.logo != null
-                ? CachedNetworkImage(imageUrl: channel.logo!, width: 130, height: 110, fit: BoxFit.cover,
+                ? CachedNetworkImage(imageUrl: channel.logo!, width: 120, height: 100, fit: BoxFit.cover,
                     errorWidget: (_, __, ___) => Container(color: kSurface, child: const Icon(Icons.live_tv, color: Colors.grey)))
-                : Container(color: kSurface, child: const Icon(Icons.live_tv, color: Colors.grey, size: 32)),
-            Positioned(top: 6, left: 6, child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              decoration: BoxDecoration(color: kRed, borderRadius: BorderRadius.circular(4)),
-              child: const Row(children: [
-                Icon(Icons.circle, color: Colors.white, size: 5),
-                SizedBox(width: 3),
-                Text('AO VIVO', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
-              ]),
+                : Container(color: kSurface, child: const Icon(Icons.live_tv, color: Colors.grey)),
+            Positioned(top: 5, left: 5, child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(color: kRed, borderRadius: BorderRadius.circular(3)),
+              child: const Text('AO VIVO', style: TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.bold)),
             )),
             Positioned(bottom: 0, left: 0, right: 0, child: Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(5),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black, Colors.transparent]),
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
               ),
-              child: Text(channel.name, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+              child: Text(channel.name, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
             )),
           ]),
@@ -342,7 +317,6 @@ class _ChannelCard extends StatelessWidget {
 class _MovieCard extends StatelessWidget {
   final Movie movie;
   const _MovieCard({required this.movie});
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -350,7 +324,7 @@ class _MovieCard extends StatelessWidget {
         builder: (_) => PlayerScreen(title: movie.name, url: movie.streamUrl),
       )),
       child: Container(
-        width: 110, margin: const EdgeInsets.only(right: 10),
+        width: 95, margin: const EdgeInsets.only(right: 8),
         decoration: BoxDecoration(color: kCard, borderRadius: BorderRadius.circular(10)),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(10),
@@ -358,19 +332,15 @@ class _MovieCard extends StatelessWidget {
             movie.cover != null
                 ? CachedNetworkImage(imageUrl: movie.cover!, fit: BoxFit.cover,
                     errorWidget: (_, __, ___) => Container(color: kSurface, child: const Icon(Icons.movie, color: Colors.grey)))
-                : Container(color: kSurface, child: const Icon(Icons.movie, color: Colors.grey, size: 32)),
+                : Container(color: kSurface, child: const Icon(Icons.movie, color: Colors.grey)),
             Positioned(bottom: 0, left: 0, right: 0, child: Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(5),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black, Colors.transparent]),
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
               ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(movie.name, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                if (movie.genre != null)
-                  Text(movie.genre!, style: const TextStyle(color: Colors.grey, fontSize: 9), maxLines: 1, overflow: TextOverflow.ellipsis),
-              ]),
+              child: Text(movie.name, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
             )),
           ]),
         ),
@@ -382,15 +352,14 @@ class _MovieCard extends StatelessWidget {
 class _ComingSoon extends StatelessWidget {
   final String label;
   const _ComingSoon({required this.label});
-
   @override
   Widget build(BuildContext context) {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      const Icon(Icons.construction, color: kRed, size: 48),
-      const SizedBox(height: 12),
-      Text(label, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 8),
-      const Text('Em breve...', style: TextStyle(color: Colors.grey)),
+      const Icon(Icons.construction, color: kRed, size: 40),
+      const SizedBox(height: 10),
+      Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 6),
+      const Text('Em breve...', style: TextStyle(color: Colors.grey, fontSize: 12)),
     ]));
   }
 }

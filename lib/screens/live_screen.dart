@@ -6,14 +6,12 @@ import '../models/epg.dart';
 import 'player_screen.dart';
 
 const _kRed = Color(0xFFE50914);
-const _kBg = Color(0xFF0A0A0A);
 const _kCard = Color(0xFF161616);
 const _kSurface = Color(0xFF1E1E1E);
 
 class LiveScreen extends StatefulWidget {
   final XtreamService service;
   const LiveScreen({super.key, required this.service});
-
   @override
   State<LiveScreen> createState() => _LiveScreenState();
 }
@@ -21,9 +19,7 @@ class LiveScreen extends StatefulWidget {
 class _LiveScreenState extends State<LiveScreen> {
   List<Channel> _channels = [];
   List<Channel> _filtered = [];
-  Map<String, List<EpgProgram>> _epg = {};
   bool _loading = true;
-  bool _loadingEpg = false;
   final _search = TextEditingController();
 
   @override
@@ -40,240 +36,212 @@ class _LiveScreenState extends State<LiveScreen> {
 
   Future<void> _load() async {
     final data = await widget.service.getLiveChannels();
-    setState(() {
-      _channels = data;
-      _filtered = data;
-      _loading = false;
-    });
-    _loadEpg();
-  }
-
-  Future<void> _loadEpg() async {
-    setState(() => _loadingEpg = true);
-    final epg = await widget.service.getShortEpg();
-    if (mounted) setState(() { _epg = epg; _loadingEpg = false; });
-  }
-
-  List<EpgProgram> _epgFor(String channelId) {
-    return _epg[channelId] ?? _epg[channelId.toString()] ?? [];
-  }
-
-  EpgProgram? _currentProgram(String channelId) {
-    final list = _epgFor(channelId);
-    try {
-      return list.cast<EpgProgram>().firstWhere((e) => e.isLive);
-    } catch (_) {
-      return list.isNotEmpty ? list.first : null;
-    }
+    if (mounted) setState(() { _channels = data; _filtered = data; _loading = false; });
   }
 
   @override
-  void dispose() {
-    _search.dispose();
-    super.dispose();
+  void dispose() { _search.dispose(); super.dispose(); }
+
+  void _openEpg(BuildContext context, Channel channel) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _kCard,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => _EpgSheet(service: widget.service, channel: channel),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      const SizedBox(height: 48),
-      // Header
+      const SizedBox(height: 12),
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
         child: Row(children: [
-          const Text('TV Ao Vivo', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text('TV Ao Vivo', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           const Spacer(),
-          if (_loadingEpg)
-            const Row(children: [
-              SizedBox(width: 12, height: 12, child: CircularProgressIndicator(color: _kRed, strokeWidth: 2)),
-              SizedBox(width: 6),
-              Text('Carregando EPG...', style: TextStyle(color: Colors.grey, fontSize: 11)),
-            ]),
+          Text('${_filtered.length} canais', style: const TextStyle(color: Colors.grey, fontSize: 11)),
         ]),
       ),
-      // Search
       Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         child: TextField(
           controller: _search,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: Colors.white, fontSize: 13),
           decoration: InputDecoration(
             hintText: 'Buscar canal...',
-            hintStyle: const TextStyle(color: Colors.grey),
-            prefixIcon: const Icon(Icons.search, color: Colors.grey),
-            filled: true,
-            fillColor: _kCard,
+            hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+            prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 18),
+            filled: true, fillColor: _kCard,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            contentPadding: const EdgeInsets.symmetric(vertical: 8),
           ),
         ),
       ),
-      // List
       Expanded(
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: _kRed))
             : _filtered.isEmpty
-                ? const Center(child: Text('Nenhum canal encontrado', style: TextStyle(color: Colors.grey)))
+                ? const Center(child: Text('Nenhum canal', style: TextStyle(color: Colors.grey)))
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     itemCount: _filtered.length,
                     itemBuilder: (_, i) {
                       final c = _filtered[i];
-                      final current = _currentProgram(c.id);
-                      return _ChannelTile(
-                        channel: c,
-                        currentProgram: current,
+                      return GestureDetector(
                         onTap: () => Navigator.push(context, MaterialPageRoute(
                           builder: (_) => PlayerScreen(title: c.name, url: c.streamUrl),
                         )),
-                        onEpgTap: () => _showEpgSheet(context, c),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          decoration: BoxDecoration(color: _kCard, borderRadius: BorderRadius.circular(10)),
+                          child: Row(children: [
+                            // Logo
+                            ClipRRect(
+                              borderRadius: const BorderRadius.horizontal(left: Radius.circular(10)),
+                              child: Container(
+                                width: 72, height: 52, color: _kSurface,
+                                child: c.logo != null
+                                    ? CachedNetworkImage(imageUrl: c.logo!, fit: BoxFit.contain,
+                                        errorWidget: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.grey, size: 20))
+                                    : const Icon(Icons.live_tv, color: Colors.grey, size: 20),
+                              ),
+                            ),
+                            // Name
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                child: Text(c.name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                              ),
+                            ),
+                            // EPG button
+                            IconButton(
+                              icon: const Icon(Icons.format_list_bulleted, color: Colors.grey, size: 18),
+                              onPressed: () => _openEpg(context, c),
+                              tooltip: 'Programação',
+                            ),
+                          ]),
+                        ),
                       );
                     },
                   ),
       ),
     ]);
   }
-
-  void _showEpgSheet(BuildContext context, Channel channel) {
-    final programs = _epgFor(channel.id);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: _kCard,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (_) => Column(children: [
-        const SizedBox(height: 12),
-        Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(2))),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(children: [
-            if (channel.logo != null)
-              CachedNetworkImage(imageUrl: channel.logo!, width: 40, height: 26, fit: BoxFit.contain,
-                  errorWidget: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.grey)),
-            const SizedBox(width: 10),
-            Expanded(child: Text(channel.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
-          ]),
-        ),
-        const SizedBox(height: 8),
-        const Divider(color: Colors.white12),
-        Expanded(
-          child: programs.isEmpty
-              ? const Center(child: Text('EPG não disponível', style: TextStyle(color: Colors.grey)))
-              : ListView.builder(
-                  itemCount: programs.length,
-                  itemBuilder: (_, i) {
-                    final p = programs[i];
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: p.isLive ? _kRed.withOpacity(0.15) : _kSurface,
-                        borderRadius: BorderRadius.circular(10),
-                        border: p.isLive ? Border.all(color: _kRed.withOpacity(0.5)) : null,
-                      ),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(children: [
-                          if (p.isLive) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(4)),
-                              child: const Text('AO VIVO', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
-                          Text(p.timeRange, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                        ]),
-                        const SizedBox(height: 4),
-                        Text(p.title, style: TextStyle(color: p.isLive ? Colors.white : Colors.white70, fontWeight: p.isLive ? FontWeight.bold : FontWeight.normal, fontSize: 14)),
-                        if (p.isLive) ...[
-                          const SizedBox(height: 6),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: p.progress,
-                              backgroundColor: Colors.white12,
-                              valueColor: const AlwaysStoppedAnimation(_kRed),
-                              minHeight: 4,
-                            ),
-                          ),
-                        ],
-                        if (p.description != null && p.description!.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(p.description!, style: const TextStyle(color: Colors.grey, fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis),
-                        ],
-                      ]),
-                    );
-                  },
-                ),
-        ),
-      ]),
-    );
-  }
 }
 
-class _ChannelTile extends StatelessWidget {
+// ── EPG SHEET ────────────────────────────────────────────
+class _EpgSheet extends StatefulWidget {
+  final XtreamService service;
   final Channel channel;
-  final EpgProgram? currentProgram;
-  final VoidCallback onTap;
-  final VoidCallback onEpgTap;
+  const _EpgSheet({required this.service, required this.channel});
+  @override
+  State<_EpgSheet> createState() => _EpgSheetState();
+}
 
-  const _ChannelTile({required this.channel, this.currentProgram, required this.onTap, required this.onEpgTap});
+class _EpgSheetState extends State<_EpgSheet> {
+  List<EpgProgram> _programs = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final data = await widget.service.getEpgForChannel(widget.channel.id);
+      if (mounted) setState(() { _programs = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = 'Erro ao carregar EPG'; _loading = false; });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(color: _kCard, borderRadius: BorderRadius.circular(12)),
-        child: Row(children: [
-          // Logo
-          Container(
-            width: 80, height: 60,
-            decoration: const BoxDecoration(
-              color: _kSurface,
-              borderRadius: BorderRadius.horizontal(left: Radius.circular(12)),
-            ),
-            child: channel.logo != null
-                ? ClipRRect(
-                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
-                    child: CachedNetworkImage(imageUrl: channel.logo!, fit: BoxFit.contain,
-                        errorWidget: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.grey)))
-                : const Icon(Icons.live_tv, color: Colors.grey),
-          ),
-          // Info
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(channel.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                if (currentProgram != null) ...[
-                  const SizedBox(height: 4),
-                  Text(currentProgram!.title, style: const TextStyle(color: Colors.grey, fontSize: 11),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: currentProgram!.progress,
-                      backgroundColor: Colors.white12,
-                      valueColor: const AlwaysStoppedAnimation(_kRed),
-                      minHeight: 3,
-                    ),
-                  ),
-                ],
-              ]),
-            ),
-          ),
-          // EPG button
-          IconButton(
-            icon: const Icon(Icons.format_list_bulleted, color: Colors.grey, size: 20),
-            onPressed: onEpgTap,
-            tooltip: 'Ver programação',
-          ),
-        ]),
-      ),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, ctrl) => Column(children: [
+        const SizedBox(height: 10),
+        Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(2))),
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(children: [
+            if (widget.channel.logo != null)
+              CachedNetworkImage(imageUrl: widget.channel.logo!, width: 36, height: 24, fit: BoxFit.contain,
+                  errorWidget: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.grey, size: 18)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(widget.channel.name,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15))),
+          ]),
+        ),
+        const Divider(color: Colors.white12, height: 16),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator(color: _kRed))
+              : _error != null
+                  ? Center(child: Text(_error!, style: const TextStyle(color: Colors.grey)))
+                  : _programs.isEmpty
+                      ? const Center(child: Text('EPG não disponível para este canal', style: TextStyle(color: Colors.grey)))
+                      : ListView.builder(
+                          controller: ctrl,
+                          itemCount: _programs.length,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          itemBuilder: (_, i) {
+                            final p = _programs[i];
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: p.isLive ? _kRed.withOpacity(0.15) : _kSurface,
+                                borderRadius: BorderRadius.circular(10),
+                                border: p.isLive ? Border.all(color: _kRed.withOpacity(0.5)) : null,
+                              ),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(children: [
+                                  if (p.isLive) ...[
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                      decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(3)),
+                                      child: const Text('AO VIVO', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  Text(p.timeRange, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                                ]),
+                                const SizedBox(height: 4),
+                                Text(p.title, style: TextStyle(
+                                  color: p.isLive ? Colors.white : Colors.white70,
+                                  fontWeight: p.isLive ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 13,
+                                )),
+                                if (p.isLive) ...[
+                                  const SizedBox(height: 6),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: LinearProgressIndicator(
+                                      value: p.progress, minHeight: 3,
+                                      backgroundColor: Colors.white12,
+                                      valueColor: const AlwaysStoppedAnimation(_kRed),
+                                    ),
+                                  ),
+                                ],
+                                if (p.description != null && p.description!.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(p.description!, style: const TextStyle(color: Colors.grey, fontSize: 10),
+                                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                                ],
+                              ]),
+                            );
+                          },
+                        ),
+        ),
+      ]),
     );
   }
 }

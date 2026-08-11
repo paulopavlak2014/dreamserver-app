@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'services/auth_store.dart';
 import 'services/xtream_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 
-void main() => runApp(const DreamServerApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+  runApp(const DreamServerApp());
+}
 
 class DreamServerApp extends StatelessWidget {
   const DreamServerApp({super.key});
