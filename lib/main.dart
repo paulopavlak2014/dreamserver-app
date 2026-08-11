@@ -21,7 +21,7 @@ class DreamServerApp extends StatelessWidget {
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: const Color(0xFF141414),
           indicatorColor: const Color(0xFFE50914),
-          labelTextStyle: WidgetStateProperty.all(
+          labelTextStyle: MaterialStateProperty.all(
             const TextStyle(color: Colors.white, fontSize: 12),
           ),
         ),
