@@ -34,9 +34,13 @@ class _MoviesScreenState extends State<MoviesScreen> {
   }
 
   @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final w = (MediaQuery.of(context).size.width - 48) / 3;
-    final h = w * 1.5;
     return Column(
       children: [
         const SizedBox(height: 50),
@@ -58,53 +62,55 @@ class _MoviesScreenState extends State<MoviesScreen> {
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFFE50914)))
-              : GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                    childAspectRatio: 2 / 3,
-                  ),
-                  itemCount: _filtered.length,
-                  itemBuilder: (_, i) {
-                    final m = _filtered[i];
-                    return GestureDetector(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl),
-                      )),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            m.cover != null
-                                ? CachedNetworkImage(imageUrl: m.cover!, fit: BoxFit.cover,
-                                    errorWidget: (_, __, ___) => Container(color: const Color(0xFF1A1A1A),
-                                      child: const Icon(Icons.movie, color: Colors.grey, size: 40)))
-                                : Container(color: const Color(0xFF1A1A1A),
-                                    child: const Icon(Icons.movie, color: Colors.grey, size: 40)),
-                            Positioned(
-                              bottom: 0, left: 0, right: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: const BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.bottomCenter,
-                                    end: Alignment.topCenter,
-                                    colors: [Colors.black87, Colors.transparent],
+              : _filtered.isEmpty
+                  ? const Center(child: Text('Nenhum filme encontrado', style: TextStyle(color: Colors.grey)))
+                  : GridView.builder(
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                        childAspectRatio: 2 / 3,
+                      ),
+                      itemCount: _filtered.length,
+                      itemBuilder: (_, i) {
+                        final m = _filtered[i];
+                        return GestureDetector(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl),
+                          )),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                m.cover != null
+                                    ? CachedNetworkImage(imageUrl: m.cover!, fit: BoxFit.cover,
+                                        errorWidget: (_, __, ___) => Container(color: const Color(0xFF1A1A1A),
+                                          child: const Icon(Icons.movie, color: Colors.grey, size: 40)))
+                                    : Container(color: const Color(0xFF1A1A1A),
+                                        child: const Icon(Icons.movie, color: Colors.grey, size: 40)),
+                                Positioned(
+                                  bottom: 0, left: 0, right: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [Colors.black87, Colors.transparent],
+                                      ),
+                                    ),
+                                    child: Text(m.name, style: const TextStyle(color: Colors.white, fontSize: 11),
+                                        maxLines: 2, overflow: TextOverflow.ellipsis),
                                   ),
                                 ),
-                                child: Text(m.name, style: const TextStyle(color: Colors.white, fontSize: 11),
-                                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                              ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                          ),
+                        );
+                      },
+                    ),
         ),
       ],
     );

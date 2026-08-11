@@ -66,4 +66,20 @@ class XtreamService {
     } catch (_) {}
     return [];
   }
+
+  Future<Map<String, dynamic>?> getSeriesInfo(String seriesId) async {
+    try {
+      final r = await http
+          .get(Uri.parse('$_api&action=get_series_info&series_id=$seriesId'))
+          .timeout(const Duration(seconds: 20));
+      if (r.statusCode == 200) {
+        return jsonDecode(r.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String seriesEpisodeUrl(String seriesId, String episodeId, String ext) {
+    return '$baseUrl/series/$username/$password/$episodeId.$ext';
+  }
 }

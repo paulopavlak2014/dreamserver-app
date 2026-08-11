@@ -34,6 +34,12 @@ class _LiveScreenState extends State<LiveScreen> {
   }
 
   @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       children: [
@@ -56,29 +62,31 @@ class _LiveScreenState extends State<LiveScreen> {
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFFE50914)))
-              : ListView.builder(
-                  itemCount: _filtered.length,
-                  itemBuilder: (_, i) {
-                    final c = _filtered[i];
-                    return ListTile(
-                      leading: c.logo != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: CachedNetworkImage(
-                                imageUrl: c.logo!,
-                                width: 48, height: 32,
-                                fit: BoxFit.contain,
-                                errorWidget: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.grey),
-                              ),
-                            )
-                          : const Icon(Icons.live_tv, color: Colors.grey),
-                      title: Text(c.name, style: const TextStyle(color: Colors.white)),
-                      onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => PlayerScreen(title: c.name, url: c.streamUrl),
-                      )),
-                    );
-                  },
-                ),
+              : _filtered.isEmpty
+                  ? const Center(child: Text('Nenhum canal encontrado', style: TextStyle(color: Colors.grey)))
+                  : ListView.builder(
+                      itemCount: _filtered.length,
+                      itemBuilder: (_, i) {
+                        final c = _filtered[i];
+                        return ListTile(
+                          leading: c.logo != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: CachedNetworkImage(
+                                    imageUrl: c.logo!,
+                                    width: 48, height: 32,
+                                    fit: BoxFit.contain,
+                                    errorWidget: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.grey),
+                                  ),
+                                )
+                              : const Icon(Icons.live_tv, color: Colors.grey),
+                          title: Text(c.name, style: const TextStyle(color: Colors.white)),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(
+                            builder: (_) => PlayerScreen(title: c.name, url: c.streamUrl),
+                          )),
+                        );
+                      },
+                    ),
         ),
       ],
     );

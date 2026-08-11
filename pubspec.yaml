@@ -14,7 +14,6 @@ dependencies:
   chewie: ^1.7.4
   cached_network_image: ^3.3.0
   shared_preferences: ^2.2.2
-  provider: ^6.1.1
 
 dev_dependencies:
   flutter_test:

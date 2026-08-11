@@ -18,11 +18,11 @@ class DreamServerApp extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0D0D0D),
         colorScheme: const ColorScheme.dark(primary: Color(0xFFE50914)),
-        navigationBarTheme: const NavigationBarThemeData(
-          backgroundColor: Color(0xFF141414),
-          indicatorColor: Color(0xFFE50914),
-          labelTextStyle: WidgetStatePropertyOrValue.value(
-            TextStyle(color: Colors.white, fontSize: 12),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: const Color(0xFF141414),
+          indicatorColor: const Color(0xFFE50914),
+          labelTextStyle: WidgetStateProperty.all(
+            const TextStyle(color: Colors.white, fontSize: 12),
           ),
         ),
       ),
