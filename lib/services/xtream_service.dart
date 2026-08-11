@@ -4,7 +4,7 @@ import '../models/channel.dart';
 
 class XtreamService {
   // ── CONFIGURAÇÃO HARDCODADA ──────────────────────────────
-  static const String baseUrl = 'http://dreamserver.shop';
+  static const String baseUrl = 'https://dreamserver.shop';
   // ────────────────────────────────────────────────────────
 
   final String username;
@@ -20,7 +20,7 @@ class XtreamService {
       if (r.statusCode == 200) {
         final data = jsonDecode(r.body);
         return data['user_info'] != null &&
-            data['user_info']['auth'] == 1;
+            data['user_info']['auth'] == 1 || data['user_info']['auth'] == '1';
       }
       return false;
     } catch (_) {
