@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/xtream_service.dart';
-import '../models/channel.dart';
 import 'live_screen.dart';
 import 'movies_screen.dart';
 import 'series_screen.dart';
+import 'epg_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final XtreamService service;
@@ -24,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _tab,
         children: [
           LiveScreen(service: widget.service),
+          EpgScreen(service: widget.service),
           MoviesScreen(service: widget.service),
           SeriesScreen(service: widget.service),
         ],
@@ -35,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.live_tv), label: 'Ao Vivo'),
+          NavigationDestination(icon: Icon(Icons.calendar_today), label: 'EPG'),
           NavigationDestination(icon: Icon(Icons.movie), label: 'Filmes'),
           NavigationDestination(icon: Icon(Icons.tv), label: 'Séries'),
         ],
