@@ -61,7 +61,7 @@ class _LiveScreenState extends State<LiveScreen> {
   EpgProgram? _currentProgram(String channelId) {
     final list = _epgFor(channelId);
     try {
-      return list.firstWhere((e) => e.isLive);
+      return list.cast<EpgProgram>().firstWhere((e) => e.isLive);
     } catch (_) {
       return list.isNotEmpty ? list.first : null;
     }
