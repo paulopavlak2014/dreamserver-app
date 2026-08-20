@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/xtream_service.dart';
 import '../models/channel.dart';
+import '../models/epg.dart';
 import 'player_screen.dart';
 
 class EpgScreen extends StatefulWidget {

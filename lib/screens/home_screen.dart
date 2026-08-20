@@ -6,6 +6,8 @@ import 'live_screen.dart';
 import 'movies_screen.dart';
 import 'series_screen.dart';
 import 'player_screen.dart';
+import 'epg_screen.dart';
+import 'settings_screen.dart';
 
 const kRed = Color(0xFFE50914);
 const kBg = Color(0xFF0A0A0A);
@@ -25,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const _navItems = [
     _NavItem(Icons.home_rounded, 'Início'),
     _NavItem(Icons.live_tv_rounded, 'TV Ao Vivo'),
+    _NavItem(Icons.grid_view_rounded, 'EPG'),
     _NavItem(Icons.movie_rounded, 'Filmes'),
     _NavItem(Icons.tv_rounded, 'Séries'),
     _NavItem(Icons.sports_soccer_rounded, 'Esportes'),
@@ -37,8 +40,10 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (_tab) {
       case 0: return _HomePage(service: widget.service);
       case 1: return LiveScreen(service: widget.service);
-      case 2: return MoviesScreen(service: widget.service);
-      case 3: return SeriesScreen(service: widget.service);
+      case 2: return EpgScreen(service: widget.service);
+      case 3: return MoviesScreen(service: widget.service);
+      case 4: return SeriesScreen(service: widget.service);
+      case 8: return SettingsScreen(service: widget.service);
       default: return _ComingSoon(label: _navItems[_tab].label);
     }
   }

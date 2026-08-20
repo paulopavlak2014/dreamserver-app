@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'channel.dart';
+
 class EpgProgram {
   final String title;
   final String channelId;
@@ -27,12 +30,30 @@ class EpgProgram {
       }
     }
 
+    // O Xtream Codes retorna title/description em Base64.
+    String decodeMaybeBase64(dynamic val) {
+      if (val == null) return '';
+      final s = val.toString();
+      if (s.isEmpty) return s;
+      try {
+        return utf8.decode(base64.decode(s));
+      } catch (_) {
+        // Já vem como texto puro em alguns painéis — usa como está.
+        return s;
+      }
+    }
+
+    final rawTitle = j['title'] ?? j['name'];
+    final rawDesc = j['description'] ?? j['plot'];
+
     return EpgProgram(
-      title: j['title'] ?? j['name'] ?? 'Sem título',
+      title: rawTitle != null && rawTitle.toString().isNotEmpty
+          ? decodeMaybeBase64(rawTitle)
+          : 'Sem título',
       channelId: j['channel_id']?.toString() ?? j['stream_id']?.toString() ?? '',
       start: parseTime(j['start_timestamp'] ?? j['start']),
       end: parseTime(j['stop_timestamp'] ?? j['end'] ?? j['stop']),
-      description: j['description'] ?? j['plot'],
+      description: rawDesc != null ? decodeMaybeBase64(rawDesc) : null,
     );
   }
 
@@ -49,5 +70,21 @@ class EpgProgram {
     String fmt(DateTime d) =>
         '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
     return '${fmt(start)} - ${fmt(end)}';
+  }
+}
+
+/// Agrupa um canal com sua programação (usado na grade do EPG).
+class EpgChannel {
+  final Channel channel;
+  final List<EpgProgram> programs;
+
+  EpgChannel({required this.channel, required this.programs});
+
+  EpgProgram? get currentProgram {
+    final now = DateTime.now();
+    for (final p in programs) {
+      if (now.isAfter(p.start) && now.isBefore(p.end)) return p;
+    }
+    return null;
   }
 }

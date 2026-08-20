@@ -96,6 +96,45 @@ class XtreamService {
     return [];
   }
 
+  /// Busca a grade de EPG para uma lista de canais (usado na tela de EPG).
+  /// Faz uma chamada por canal em paralelo (limitando concorrência) para
+  /// evitar sobrecarregar o painel e travar a tela.
+  Future<List<EpgChannel>> getEpg({
+    required List<Channel> channels,
+    int limit = 6,
+  }) async {
+    final result = <EpgChannel>[];
+    const batchSize = 8; // evita disparar muitas requisições de uma vez
+
+    for (var i = 0; i < channels.length; i += batchSize) {
+      final batch = channels.skip(i).take(batchSize).toList();
+      final programsList = await Future.wait(
+        batch.map((c) => _getSimpleEpg(c.id, limit: limit)),
+      );
+      for (var j = 0; j < batch.length; j++) {
+        if (programsList[j].isNotEmpty) {
+          result.add(EpgChannel(channel: batch[j], programs: programsList[j]));
+        }
+      }
+    }
+    return result;
+  }
+
+  Future<List<EpgProgram>> _getSimpleEpg(String streamId, {int limit = 6}) async {
+    try {
+      final url = '$_api&action=get_short_epg&stream_id=$streamId&limit=$limit';
+      final r = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 12));
+      if (r.statusCode == 200) {
+        final data = jsonDecode(r.body);
+        final List epgList = data is Map ? (data['epg_listings'] ?? []) : [];
+        return epgList
+            .map((e) => EpgProgram.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
   /// Busca EPG de todos os canais (short EPG)
   Future<Map<String, List<EpgProgram>>> getShortEpg() async {
     try {
