@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import '../models/epg.dart';
+import '../services/xtream_service.dart';
 
 const _kRed = Color(0xFFE50914);
 
@@ -11,7 +13,20 @@ enum AspectMode { wide, fit, full }
 class PlayerScreen extends StatefulWidget {
   final String title;
   final String url;
-  const PlayerScreen({super.key, required this.title, required this.url});
+  /// Opcionais: se informados (canal ao vivo), mostra um aviso com a
+  /// programação atual por alguns segundos ao abrir o player.
+  final String? channelLogo;
+  final String? channelId;
+  final XtreamService? service;
+
+  const PlayerScreen({
+    super.key,
+    required this.title,
+    required this.url,
+    this.channelLogo,
+    this.channelId,
+    this.service,
+  });
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -29,6 +44,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Timer? _hideTimer;
   AspectMode _aspectMode = AspectMode.wide;
 
+  // Aviso de "trocou de canal" com a programação atual
+  bool _showOsd = false;
+  EpgProgram? _currentProgram;
+  Timer? _osdTimer;
+
   @override
   void initState() {
     super.initState();
@@ -38,9 +58,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeRight,
     ]);
 
+    // Configuração enxuta: cache pequeno o suficiente para absorver
+    // instabilidade de rede sem acumular atraso (evita travar em live).
     _player = Player(
       configuration: const PlayerConfiguration(
-        bufferSize: 16 * 1024 * 1024,
+        bufferSize: 16 * 1024 * 1024, // 16MB — leve, suficiente p/ live
       ),
     );
     _controller = VideoController(
@@ -59,6 +81,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _open();
     _scheduleHide();
+    _maybeShowOsd();
+  }
+
+  void _maybeShowOsd() async {
+    if (widget.channelId == null || widget.service == null) return;
+    setState(() => _showOsd = true);
+    // Busca a programação em paralelo — não atrasa a exibição do aviso
+    widget.service!.getCurrentProgram(widget.channelId!).then((p) {
+      if (mounted && _showOsd) setState(() => _currentProgram = p);
+    });
+    _osdTimer = Timer(const Duration(seconds: 7), () {
+      if (mounted) setState(() => _showOsd = false);
+    });
   }
 
   Future<void> _open() async {
@@ -98,7 +133,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     switch (_aspectMode) {
       case AspectMode.wide: return 16 / 9;
       case AspectMode.fit: return 4 / 3;
-      case AspectMode.full: return null;
+      case AspectMode.full: return null; // preenche a tela
     }
   }
 
@@ -114,6 +149,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void dispose() {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _hideTimer?.cancel();
+    _osdTimer?.cancel();
     _bufferingSub?.cancel();
     _errorSub?.cancel();
     _player.dispose();
@@ -141,6 +177,70 @@ class _PlayerScreenState extends State<PlayerScreen> {
           ),
           if (_buffering && !_error)
             const Center(child: CircularProgressIndicator(color: _kRed)),
+          // Aviso de canal (OSD) — aparece por 7s ao abrir
+          if (_showOsd)
+            Positioned(
+              left: 0, right: 0, bottom: 0,
+              child: GestureDetector(
+                onTap: () => setState(() => _showOsd = false),
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Row(children: [
+                    if (widget.channelLogo != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Image.network(widget.channelLogo!, width: 44, height: 44,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.white, size: 32)),
+                      ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(3)),
+                              child: const Text('AO VIVO', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(widget.title,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ),
+                          ]),
+                          const SizedBox(height: 4),
+                          if (_currentProgram != null) ...[
+                            Text(_currentProgram!.title,
+                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 4),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(3),
+                              child: LinearProgressIndicator(
+                                value: _currentProgram!.progress, minHeight: 3,
+                                backgroundColor: Colors.white24,
+                                valueColor: const AlwaysStoppedAnimation(_kRed),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(_currentProgram!.timeRange, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                          ] else
+                            const Text('Carregando programação...', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
           if (_controlsVisible)
             Positioned(
               top: 0, left: 0, right: 0,

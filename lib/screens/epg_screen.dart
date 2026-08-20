@@ -472,7 +472,7 @@ class _EpgScreenState extends State<EpgScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PlayerScreen(title: channel.name, url: channel.streamUrl),
+        builder: (_) => PlayerScreen(title: channel.name, url: channel.streamUrl, channelLogo: channel.logo, channelId: channel.id, service: widget.service),
       ),
     );
   }

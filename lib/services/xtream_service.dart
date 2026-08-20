@@ -40,6 +40,23 @@ class XtreamService {
     return [];
   }
 
+  Future<List<Category>> getLiveCategories() => _getCategories('get_live_categories');
+  Future<List<Category>> getVodCategories() => _getCategories('get_vod_categories');
+  Future<List<Category>> getSeriesCategories() => _getCategories('get_series_categories');
+
+  Future<List<Category>> _getCategories(String action) async {
+    try {
+      final r = await http
+          .get(Uri.parse('$_api&action=$action'))
+          .timeout(const Duration(seconds: 15));
+      if (r.statusCode == 200) {
+        final List data = jsonDecode(r.body);
+        return data.map((j) => Category.fromJson(j)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
   Future<List<Movie>> getMovies() async {
     try {
       final r = await http
@@ -94,6 +111,16 @@ class XtreamService {
       }
     } catch (_) {}
     return [];
+  }
+
+  /// Busca só o programa atual (usado no aviso ao trocar de canal)
+  Future<EpgProgram?> getCurrentProgram(String streamId) async {
+    final list = await getEpgForChannel(streamId);
+    final now = DateTime.now();
+    for (final p in list) {
+      if (now.isAfter(p.start) && now.isBefore(p.end)) return p;
+    }
+    return null;
   }
 
   /// Busca a grade de EPG para uma lista de canais (usado na tela de EPG).

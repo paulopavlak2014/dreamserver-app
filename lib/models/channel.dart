@@ -34,6 +34,7 @@ class Movie {
   final String? genre;
   final String? rating;
   final String? year;
+  final String? categoryId;
 
   Movie({
     required this.id,
@@ -44,6 +45,7 @@ class Movie {
     this.genre,
     this.rating,
     this.year,
+    this.categoryId,
   });
 
   factory Movie.fromJson(Map<String, dynamic> j, String baseUrl, String user, String pass) {
@@ -58,6 +60,7 @@ class Movie {
       genre: j['genre'],
       rating: j['rating']?.toString(),
       year: j['year']?.toString(),
+      categoryId: j['category_id']?.toString(),
     );
   }
 }
@@ -70,6 +73,7 @@ class Series {
   final String? genre;
   final String? rating;
   final String? year;
+  final String? categoryId;
 
   Series({
     required this.id,
@@ -79,6 +83,7 @@ class Series {
     this.genre,
     this.rating,
     this.year,
+    this.categoryId,
   });
 
   factory Series.fromJson(Map<String, dynamic> j) {
@@ -90,6 +95,17 @@ class Series {
       genre: j['genre'],
       rating: j['rating']?.toString(),
       year: j['year']?.toString(),
+      categoryId: j['category_id']?.toString(),
     );
   }
+}
+
+class Category {
+  final String id;
+  final String name;
+  Category({required this.id, required this.name});
+  factory Category.fromJson(Map<String, dynamic> j) => Category(
+        id: j['category_id']?.toString() ?? '',
+        name: j['category_name']?.toString() ?? 'Categoria',
+      );
 }

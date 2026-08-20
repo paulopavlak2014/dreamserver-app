@@ -138,6 +138,7 @@ class _HomePageState extends State<_HomePage> {
       if (_live.isNotEmpty) SliverToBoxAdapter(child: _Banner(
         channels: _live.take(5).toList(), index: _bannerIndex,
         controller: _pageCtrl, onChanged: (i) => setState(() => _bannerIndex = i),
+        service: widget.service,
       )),
       if (_live.isNotEmpty) ...[
         SliverToBoxAdapter(child: _SectionHeader(title: 'Canais em Destaque')),
@@ -145,7 +146,7 @@ class _HomePageState extends State<_HomePage> {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           itemCount: _live.take(10).length,
-          itemBuilder: (_, i) => _ChannelCard(channel: _live[i]),
+          itemBuilder: (_, i) => _ChannelCard(channel: _live[i], service: widget.service),
         ))),
       ],
       if (_movies.isNotEmpty) ...[
@@ -189,7 +190,8 @@ class _Banner extends StatelessWidget {
   final int index;
   final PageController controller;
   final ValueChanged<int> onChanged;
-  const _Banner({required this.channels, required this.index, required this.controller, required this.onChanged});
+  final XtreamService service;
+  const _Banner({required this.channels, required this.index, required this.controller, required this.onChanged, required this.service});
 
   @override
   Widget build(BuildContext context) {
@@ -230,7 +232,7 @@ class _Banner extends StatelessWidget {
                       const SizedBox(height: 8),
                       ElevatedButton.icon(
                         onPressed: () => Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => PlayerScreen(title: ch.name, url: ch.streamUrl),
+                          builder: (_) => PlayerScreen(title: ch.name, url: ch.streamUrl, channelLogo: ch.logo, channelId: ch.id, service: service),
                         )),
                         icon: const Icon(Icons.play_arrow, size: 16),
                         label: const Text('Assistir', style: TextStyle(fontSize: 12)),
@@ -281,12 +283,13 @@ class _SectionHeader extends StatelessWidget {
 
 class _ChannelCard extends StatelessWidget {
   final Channel channel;
-  const _ChannelCard({required this.channel});
+  final XtreamService service;
+  const _ChannelCard({required this.channel, required this.service});
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(
-        builder: (_) => PlayerScreen(title: channel.name, url: channel.streamUrl),
+        builder: (_) => PlayerScreen(title: channel.name, url: channel.streamUrl, channelLogo: channel.logo, channelId: channel.id, service: service),
       )),
       child: Container(
         width: 120, margin: const EdgeInsets.only(right: 8),

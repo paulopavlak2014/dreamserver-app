@@ -183,11 +183,10 @@ class _SeriesScreenState extends State<SeriesScreen> {
                     )
                   : GridView.builder(
                       padding: const EdgeInsets.all(16),
-                      gridDelegate: const
-                          SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 110,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
                         childAspectRatio: 2 / 3,
                       ),
                       itemCount: _filtered.length,
@@ -210,7 +209,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
                                           child: const Icon(
                                             Icons.tv,
                                             color: Colors.grey,
-                                            size: 40,
+                                            size: 32,
                                           ),
                                         ),
                                       )
@@ -219,7 +218,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
                                         child: const Icon(
                                           Icons.tv,
                                           color: Colors.grey,
-                                          size: 40,
+                                          size: 32,
                                         ),
                                       ),
                                 Positioned(
@@ -227,7 +226,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
                                   left: 0,
                                   right: 0,
                                   child: Container(
-                                    padding: const EdgeInsets.all(6),
+                                    padding: const EdgeInsets.all(5),
                                     decoration: const BoxDecoration(
                                       gradient: LinearGradient(
                                         begin: Alignment.bottomCenter,
@@ -242,7 +241,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
                                       s.name,
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 11,
+                                        fontSize: 10,
                                       ),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,

@@ -19,6 +19,8 @@ class LiveScreen extends StatefulWidget {
 class _LiveScreenState extends State<LiveScreen> {
   List<Channel> _channels = [];
   List<Channel> _filtered = [];
+  List<Category> _categories = [];
+  String? _selectedCategoryId; // null = "Todos"
   bool _loading = true;
   final _search = TextEditingController();
 
@@ -26,17 +28,38 @@ class _LiveScreenState extends State<LiveScreen> {
   void initState() {
     super.initState();
     _load();
-    _search.addListener(() {
-      final q = _search.text.toLowerCase();
-      setState(() => _filtered = q.isEmpty
-          ? _channels
-          : _channels.where((c) => c.name.toLowerCase().contains(q)).toList());
-    });
+    _search.addListener(_applyFilter);
   }
 
   Future<void> _load() async {
-    final data = await widget.service.getLiveChannels();
-    if (mounted) setState(() { _channels = data; _filtered = data; _loading = false; });
+    final results = await Future.wait([
+      widget.service.getLiveChannels(),
+      widget.service.getLiveCategories(),
+    ]);
+    final data = results[0] as List<Channel>;
+    final cats = results[1] as List<Category>;
+    // Só mantém categorias que realmente têm canais
+    final usedIds = data.map((c) => c.category).toSet();
+    final usedCats = cats.where((c) => usedIds.contains(c.id)).toList();
+    if (mounted) {
+      setState(() {
+        _channels = data;
+        _categories = usedCats;
+        _loading = false;
+      });
+      _applyFilter();
+    }
+  }
+
+  void _applyFilter() {
+    final q = _search.text.toLowerCase();
+    setState(() {
+      _filtered = _channels.where((c) {
+        final matchesCat = _selectedCategoryId == null || c.category == _selectedCategoryId;
+        final matchesQuery = q.isEmpty || c.name.toLowerCase().contains(q);
+        return matchesCat && matchesQuery;
+      }).toList();
+    });
   }
 
   @override
@@ -50,6 +73,18 @@ class _LiveScreenState extends State<LiveScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (_) => _EpgSheet(service: widget.service, channel: channel),
     );
+  }
+
+  void _playChannel(Channel c) {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => PlayerScreen(
+        title: c.name,
+        url: c.streamUrl,
+        channelLogo: c.logo,
+        channelId: c.id,
+        service: widget.service,
+      ),
+    ));
   }
 
   @override
@@ -79,6 +114,27 @@ class _LiveScreenState extends State<LiveScreen> {
           ),
         ),
       ),
+      if (_categories.isNotEmpty)
+        SizedBox(
+          height: 36,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            children: [
+              _CategoryChip(
+                label: 'Todos',
+                selected: _selectedCategoryId == null,
+                onTap: () { setState(() => _selectedCategoryId = null); _applyFilter(); },
+              ),
+              ..._categories.map((cat) => _CategoryChip(
+                    label: cat.name,
+                    selected: _selectedCategoryId == cat.id,
+                    onTap: () { setState(() => _selectedCategoryId = cat.id); _applyFilter(); },
+                  )),
+            ],
+          ),
+        ),
+      const SizedBox(height: 4),
       Expanded(
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: _kRed))
@@ -90,9 +146,7 @@ class _LiveScreenState extends State<LiveScreen> {
                     itemBuilder: (_, i) {
                       final c = _filtered[i];
                       return GestureDetector(
-                        onTap: () => Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => PlayerScreen(title: c.name, url: c.streamUrl),
-                        )),
+                        onTap: () => _playChannel(c),
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 6),
                           decoration: BoxDecoration(color: _kCard, borderRadius: BorderRadius.circular(10)),
@@ -129,6 +183,37 @@ class _LiveScreenState extends State<LiveScreen> {
                   ),
       ),
     ]);
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _CategoryChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: selected ? _kRed : _kCard,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: selected ? _kRed : Colors.white12),
+          ),
+          child: Text(label, style: TextStyle(
+            color: selected ? Colors.white : Colors.grey,
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          )),
+        ),
+      ),
+    );
   }
 }
 
