@@ -4,7 +4,7 @@ import '../models/channel.dart';
 import '../models/epg.dart';
 
 class XtreamService {
-  static const String baseUrl = 'https://dreamserver.shop';
+  static const String baseUrl = 'https://servertv.dreamserver.shop';
 
   final String username;
   final String password;
