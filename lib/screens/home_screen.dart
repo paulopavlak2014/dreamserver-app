@@ -8,6 +8,7 @@ import 'series_screen.dart';
 import 'player_screen.dart';
 import 'epg_screen.dart';
 import 'settings_screen.dart';
+import 'sports_screen.dart';
 
 const kRed = Color(0xFFE50914);
 const kBg = Color(0xFF0A0A0A);
@@ -43,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 2: return EpgScreen(service: widget.service);
       case 3: return MoviesScreen(service: widget.service);
       case 4: return SeriesScreen(service: widget.service);
+      case 5: return const SportsScreen();
       case 8: return SettingsScreen(service: widget.service);
       default: return _ComingSoon(label: _navItems[_tab].label);
     }
@@ -53,13 +55,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: kBg,
       body: Row(children: [
-        // Sidebar — largura fixa pequena
         Container(
           width: 58,
           color: const Color(0xFF0F0F0F),
           child: Column(children: [
             const SizedBox(height: 16),
-            // Logo
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 10),
               child: Icon(Icons.play_circle_filled, color: kRed, size: 26),
@@ -93,7 +93,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ]),
         ),
-        // Main content
         Expanded(child: _buildPage()),
       ]),
     );
