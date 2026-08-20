@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/epg.dart';
 import '../services/xtream_service.dart';
 
@@ -13,8 +14,6 @@ enum AspectMode { wide, fit, full }
 class PlayerScreen extends StatefulWidget {
   final String title;
   final String url;
-  /// Opcionais: se informados (canal ao vivo), mostra um aviso com a
-  /// programação atual por alguns segundos ao abrir o player.
   final String? channelLogo;
   final String? channelId;
   final XtreamService? service;
@@ -44,7 +43,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Timer? _hideTimer;
   AspectMode _aspectMode = AspectMode.wide;
 
-  // Aviso de "trocou de canal" com a programação atual
   bool _showOsd = false;
   EpgProgram? _currentProgram;
   Timer? _osdTimer;
@@ -58,11 +56,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeRight,
     ]);
 
-    // Configuração enxuta: cache pequeno o suficiente para absorver
-    // instabilidade de rede sem acumular atraso (evita travar em live).
     _player = Player(
       configuration: const PlayerConfiguration(
-        bufferSize: 16 * 1024 * 1024, // 16MB — leve, suficiente p/ live
+        bufferSize: 16 * 1024 * 1024,
       ),
     );
     _controller = VideoController(
@@ -87,7 +83,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _maybeShowOsd() async {
     if (widget.channelId == null || widget.service == null) return;
     setState(() => _showOsd = true);
-    // Busca a programação em paralelo — não atrasa a exibição do aviso
     widget.service!.getCurrentProgram(widget.channelId!).then((p) {
       if (mounted && _showOsd) setState(() => _currentProgram = p);
     });
@@ -122,7 +117,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     setState(() {
       _aspectMode = switch (_aspectMode) {
         AspectMode.wide => AspectMode.fit,
-        AspectMode.fit => AspectMode.full,
+        AspectMode.fit  => AspectMode.full,
         AspectMode.full => AspectMode.wide,
       };
     });
@@ -132,17 +127,106 @@ class _PlayerScreenState extends State<PlayerScreen> {
   double? get _aspectRatio {
     switch (_aspectMode) {
       case AspectMode.wide: return 16 / 9;
-      case AspectMode.fit: return 4 / 3;
-      case AspectMode.full: return null; // preenche a tela
+      case AspectMode.fit:  return 4 / 3;
+      case AspectMode.full: return null;
     }
   }
 
   String get _aspectLabel {
     switch (_aspectMode) {
       case AspectMode.wide: return '16:9';
-      case AspectMode.fit: return '4:3';
+      case AspectMode.fit:  return '4:3';
       case AspectMode.full: return 'Preencher';
     }
+  }
+
+  // ── Player externo ──────────────────────────────────────
+  void _openExternal(String app) async {
+    // Pausa o player interno antes de abrir o externo
+    await _player.pause();
+
+    Uri uri;
+    switch (app) {
+      case 'vlc':
+        uri = Uri.parse('vlc://${widget.url}');
+        break;
+      case 'mx':
+        uri = Uri.parse(
+          'intent:${widget.url}#Intent;package=com.mxtech.videoplayer.ad;end',
+        );
+        break;
+      default:
+        uri = Uri.parse(widget.url);
+    }
+
+    final ok = await canLaunchUrl(uri);
+    if (ok) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            app == 'vlc'
+                ? 'VLC não encontrado. Instale o VLC para Android.'
+                : app == 'mx'
+                    ? 'MX Player não encontrado.'
+                    : 'Nenhum player externo disponível.',
+          ),
+          backgroundColor: Colors.red.shade800,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      // Retoma o player interno se o externo não abriu
+      await _player.play();
+    }
+  }
+
+  void _showExternalMenu() {
+    _hideTimer?.cancel();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36, height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text('Abrir em player externo',
+                  style: TextStyle(color: Colors.white70, fontSize: 13)),
+            ),
+            _ExternalOption(
+              icon: Icons.play_circle_fill_rounded,
+              label: 'VLC Media Player',
+              subtitle: 'com.videolan.vlc',
+              onTap: () { Navigator.pop(context); _openExternal('vlc'); },
+            ),
+            _ExternalOption(
+              icon: Icons.smart_display_rounded,
+              label: 'MX Player',
+              subtitle: 'com.mxtech.videoplayer.ad',
+              onTap: () { Navigator.pop(context); _openExternal('mx'); },
+            ),
+            _ExternalOption(
+              icon: Icons.open_in_new_rounded,
+              label: 'Outro player',
+              subtitle: 'Abre com o app padrão do sistema',
+              onTap: () { Navigator.pop(context); _openExternal('other'); },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    ).whenComplete(_scheduleHide);
   }
 
   @override
@@ -163,6 +247,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       body: GestureDetector(
         onTap: _toggleControls,
         child: Stack(children: [
+          // Vídeo
           Center(
             child: _error
                 ? _ErrorView(onRetry: _open)
@@ -175,9 +260,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     ),
                   ),
           ),
+
+          // Buffering
           if (_buffering && !_error)
             const Center(child: CircularProgressIndicator(color: _kRed)),
-          // Aviso de canal (OSD) — aparece por 7s ao abrir
+
+          // OSD — aviso de canal por 7s
           if (_showOsd)
             Positioned(
               left: 0, right: 0, bottom: 0,
@@ -241,6 +329,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ),
               ),
             ),
+
+          // Controles — topo
           if (_controlsVisible)
             Positioned(
               top: 0, left: 0, right: 0,
@@ -257,9 +347,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () => Navigator.pop(context),
                   ),
-                  Expanded(child: Text(widget.title,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                      maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Expanded(
+                    child: Text(widget.title,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+
+                  // Botão aspect ratio
                   GestureDetector(
                     onTap: _cycleAspect,
                     child: Container(
@@ -276,10 +370,33 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       ]),
                     ),
                   ),
+
+                  const SizedBox(width: 8),
+
+                  // Botão player externo ← NOVO
+                  GestureDetector(
+                    onTap: _showExternalMenu,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white12,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: const Row(children: [
+                        Icon(Icons.open_in_new_rounded, color: Colors.white, size: 16),
+                        SizedBox(width: 4),
+                        Text('Externo', style: TextStyle(color: Colors.white, fontSize: 12)),
+                      ]),
+                    ),
+                  ),
+
                   const SizedBox(width: 8),
                 ]),
               ),
             ),
+
+          // Play/Pause central
           if (_controlsVisible && !_error)
             Center(
               child: StreamBuilder<bool>(
@@ -300,8 +417,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       ),
                       child: Icon(
                         playing ? Icons.pause : Icons.play_arrow,
-                        color: Colors.white,
-                        size: 36,
+                        color: Colors.white, size: 36,
                       ),
                     ),
                   );
@@ -314,6 +430,36 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 }
 
+// ── Widget de opção no bottom sheet ─────────────────────
+class _ExternalOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ExternalOption({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(color: _kRed.withOpacity(0.15), shape: BoxShape.circle),
+        child: Icon(icon, color: _kRed, size: 20),
+      ),
+      title: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+      subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+      onTap: onTap,
+    );
+  }
+}
+
+// ── Tela de erro ─────────────────────────────────────────
 class _ErrorView extends StatelessWidget {
   final VoidCallback onRetry;
   const _ErrorView({required this.onRetry});
