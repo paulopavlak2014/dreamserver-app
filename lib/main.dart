@@ -8,7 +8,6 @@ import 'screens/home_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Obrigatório para o media_kit — sem isso o player fica com tela cinza
   MediaKit.ensureInitialized();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
@@ -29,13 +28,17 @@ class DreamServerApp extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0D0D0D),
         colorScheme: const ColorScheme.dark(primary: Color(0xFFE50914)),
+        // MaterialStateProperty = Flutter 3.19; WidgetStateProperty = 3.22+
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: const Color(0xFF141414),
           indicatorColor: const Color(0xFFE50914),
-          labelTextStyle: WidgetStateProperty.all(
+          labelTextStyle: MaterialStateProperty.all(
             const TextStyle(color: Colors.white, fontSize: 12),
           ),
         ),
+        // Foco para TV / controle remoto
+        focusColor: const Color(0xFFE50914).withOpacity(0.35),
+        highlightColor: const Color(0xFFE50914).withOpacity(0.2),
       ),
       home: const SplashScreen(),
     );

@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace "com.dreamserver.app"
-    compileSdk 34
+    compileSdk 36
     ndkVersion "26.1.10909125"
 
     compileOptions {

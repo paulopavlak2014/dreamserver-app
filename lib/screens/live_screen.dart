@@ -3,8 +3,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../services/xtream_service.dart';
 import '../models/channel.dart';
 import '../models/epg.dart';
-import 'player_screen.dart';
 import '../services/favorites_service.dart';
+import 'player_screen.dart';
 
 const _kRed = Color(0xFFE50914);
 const _kCard = Color(0xFF161616);
@@ -21,7 +21,7 @@ class _LiveScreenState extends State<LiveScreen> {
   List<Channel> _channels = [];
   List<Channel> _filtered = [];
   List<Category> _categories = [];
-  String? _selectedCategoryId; // null = "Todos"
+  String? _selectedCategoryId;
   bool _loading = true;
   final _search = TextEditingController();
 
@@ -39,7 +39,6 @@ class _LiveScreenState extends State<LiveScreen> {
     ]);
     final data = results[0] as List<Channel>;
     final cats = results[1] as List<Category>;
-    // Só mantém categorias que realmente têm canais
     final usedIds = data.map((c) => c.category).toSet();
     final usedCats = cats.where((c) => usedIds.contains(c.id)).toList();
     if (mounted) {
@@ -64,7 +63,10 @@ class _LiveScreenState extends State<LiveScreen> {
   }
 
   @override
-  void dispose() { _search.dispose(); super.dispose(); }
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   void _openEpg(BuildContext context, Channel channel) {
     showModalBottomSheet(
@@ -77,15 +79,18 @@ class _LiveScreenState extends State<LiveScreen> {
   }
 
   void _playChannel(Channel c) {
-    Navigator.push(context, MaterialPageRoute(
-      builder: (_) => PlayerScreen(
-        title: c.name,
-        url: c.streamUrl,
-        channelLogo: c.logo,
-        channelId: c.id,
-        service: widget.service,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlayerScreen(
+          title: c.name,
+          url: c.streamUrl,
+          channelLogo: c.logo,
+          channelId: c.id,
+          service: widget.service,
+        ),
       ),
-    ));
+    );
   }
 
   @override
@@ -109,7 +114,8 @@ class _LiveScreenState extends State<LiveScreen> {
             hintText: 'Buscar canal...',
             hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
             prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 18),
-            filled: true, fillColor: _kCard,
+            filled: true,
+            fillColor: _kCard,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
             contentPadding: const EdgeInsets.symmetric(vertical: 8),
           ),
@@ -125,12 +131,18 @@ class _LiveScreenState extends State<LiveScreen> {
               _CategoryChip(
                 label: 'Todos',
                 selected: _selectedCategoryId == null,
-                onTap: () { setState(() => _selectedCategoryId = null); _applyFilter(); },
+                onTap: () {
+                  setState(() => _selectedCategoryId = null);
+                  _applyFilter();
+                },
               ),
               ..._categories.map((cat) => _CategoryChip(
                     label: cat.name,
                     selected: _selectedCategoryId == cat.id,
-                    onTap: () { setState(() => _selectedCategoryId = cat.id); _applyFilter(); },
+                    onTap: () {
+                      setState(() => _selectedCategoryId = cat.id);
+                      _applyFilter();
+                    },
                   )),
             ],
           ),
@@ -146,46 +158,148 @@ class _LiveScreenState extends State<LiveScreen> {
                     itemCount: _filtered.length,
                     itemBuilder: (_, i) {
                       final c = _filtered[i];
-                      return GestureDetector(
-                        onTap: () => _playChannel(c),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 6),
-                          decoration: BoxDecoration(color: _kCard, borderRadius: BorderRadius.circular(10)),
-                          child: Row(children: [
-                            // Logo
-                            ClipRRect(
-                              borderRadius: const BorderRadius.horizontal(left: Radius.circular(10)),
-                              child: Container(
-                                width: 72, height: 52, color: _kSurface,
-                                child: c.logo != null
-                                    ? CachedNetworkImage(imageUrl: c.logo!, fit: BoxFit.contain,
-                                        errorWidget: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.grey, size: 20))
-                                    : const Icon(Icons.live_tv, color: Colors.grey, size: 20),
-                              ),
-                            ),
-                            // Name
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                child: Text(c.name, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                              ),
-                            ),
-                            // Favorito
-                            _FavButton(channel: c),
-                            // EPG button
-                            IconButton(
-                              icon: const Icon(Icons.format_list_bulleted, color: Colors.grey, size: 18),
-                              onPressed: () => _openEpg(context, c),
-                              tooltip: 'Programação',
-                            ),
-                          ]),
-                        ),
+                      return _FocusableChannelTile(
+                        channel: c,
+                        onPlay: () => _playChannel(c),
+                        onEpg: () => _openEpg(context, c),
                       );
                     },
                   ),
       ),
     ]);
+  }
+}
+
+/// Tile com foco visível para controle remoto / TV
+class _FocusableChannelTile extends StatefulWidget {
+  final Channel channel;
+  final VoidCallback onPlay;
+  final VoidCallback onEpg;
+  const _FocusableChannelTile({
+    required this.channel,
+    required this.onPlay,
+    required this.onEpg,
+  });
+
+  @override
+  State<_FocusableChannelTile> createState() => _FocusableChannelTileState();
+}
+
+class _FocusableChannelTileState extends State<_FocusableChannelTile> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.channel;
+    return FocusableActionDetector(
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) {
+          widget.onPlay();
+          return null;
+        }),
+      },
+      child: GestureDetector(
+        onTap: widget.onPlay,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          margin: const EdgeInsets.only(bottom: 6),
+          decoration: BoxDecoration(
+            color: _focused ? _kRed.withOpacity(0.18) : _kCard,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _focused ? _kRed : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: Row(children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+              child: Container(
+                width: 72,
+                height: 52,
+                color: _kSurface,
+                child: c.logo != null
+                    ? CachedNetworkImage(
+                        imageUrl: c.logo!,
+                        fit: BoxFit.contain,
+                        errorWidget: (_, __, ___) =>
+                            const Icon(Icons.live_tv, color: Colors.grey, size: 20))
+                    : const Icon(Icons.live_tv, color: Colors.grey, size: 20),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Text(
+                  c.name,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: _focused ? FontWeight.bold : FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            _FavButton(channel: c),
+            IconButton(
+              icon: const Icon(Icons.format_list_bulleted, color: Colors.grey, size: 18),
+              onPressed: widget.onEpg,
+              tooltip: 'Programação',
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _FavButton extends StatefulWidget {
+  final Channel channel;
+  const _FavButton({required this.channel});
+
+  @override
+  State<_FavButton> createState() => _FavButtonState();
+}
+
+class _FavButtonState extends State<_FavButton> {
+  bool _isFav = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final ok = await FavoritesService.isFavorite(widget.channel.streamUrl);
+    if (mounted) setState(() => _isFav = ok);
+  }
+
+  Future<void> _toggle() async {
+    await FavoritesService.toggle({
+      'id': widget.channel.id,
+      'title': widget.channel.name,
+      'url': widget.channel.streamUrl,
+      'type': 'live',
+      'category': widget.channel.category ?? '',
+    });
+    if (mounted) setState(() => _isFav = !_isFav);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(
+        _isFav ? Icons.star_rounded : Icons.star_border_rounded,
+        color: _isFav ? Colors.amber : Colors.grey,
+        size: 20,
+      ),
+      onPressed: _toggle,
+      tooltip: 'Favorito',
+    );
   }
 }
 
@@ -199,28 +313,48 @@ class _CategoryChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(right: 6),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: selected ? _kRed : _kCard,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: selected ? _kRed : Colors.white12),
-          ),
-          child: Text(label, style: TextStyle(
-            color: selected ? Colors.white : Colors.grey,
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          )),
-        ),
+      child: FocusableActionDetector(
+        onShowFocusHighlight: (_) {},
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) {
+            onTap();
+            return null;
+          }),
+        },
+        child: Builder(builder: (context) {
+          final focused = Focus.of(context).hasFocus;
+          return GestureDetector(
+            onTap: onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: selected ? _kRed : _kCard,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: focused
+                      ? Colors.white
+                      : (selected ? _kRed : Colors.white12),
+                  width: focused ? 2 : 1,
+                ),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : Colors.grey,
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
 }
 
-// ── EPG SHEET ────────────────────────────────────────────
 class _EpgSheet extends StatefulWidget {
   final XtreamService service;
   final Channel channel;
@@ -235,7 +369,10 @@ class _EpgSheetState extends State<_EpgSheet> {
   String? _error;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   Future<void> _load() async {
     try {
@@ -261,11 +398,20 @@ class _EpgSheetState extends State<_EpgSheet> {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Row(children: [
             if (widget.channel.logo != null)
-              CachedNetworkImage(imageUrl: widget.channel.logo!, width: 36, height: 24, fit: BoxFit.contain,
-                  errorWidget: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.grey, size: 18)),
+              CachedNetworkImage(
+                imageUrl: widget.channel.logo!,
+                width: 36,
+                height: 24,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.grey, size: 18),
+              ),
             const SizedBox(width: 8),
-            Expanded(child: Text(widget.channel.name,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15))),
+            Expanded(
+              child: Text(
+                widget.channel.name,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+            ),
           ]),
         ),
         const Divider(color: Colors.white12, height: 16),
@@ -303,17 +449,21 @@ class _EpgSheetState extends State<_EpgSheet> {
                                   Text(p.timeRange, style: const TextStyle(color: Colors.grey, fontSize: 11)),
                                 ]),
                                 const SizedBox(height: 4),
-                                Text(p.title, style: TextStyle(
-                                  color: p.isLive ? Colors.white : Colors.white70,
-                                  fontWeight: p.isLive ? FontWeight.bold : FontWeight.normal,
-                                  fontSize: 13,
-                                )),
+                                Text(
+                                  p.title,
+                                  style: TextStyle(
+                                    color: p.isLive ? Colors.white : Colors.white70,
+                                    fontWeight: p.isLive ? FontWeight.bold : FontWeight.normal,
+                                    fontSize: 13,
+                                  ),
+                                ),
                                 if (p.isLive) ...[
                                   const SizedBox(height: 6),
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(4),
                                     child: LinearProgressIndicator(
-                                      value: p.progress, minHeight: 3,
+                                      value: p.progress,
+                                      minHeight: 3,
                                       backgroundColor: Colors.white12,
                                       valueColor: const AlwaysStoppedAnimation(_kRed),
                                     ),
@@ -321,8 +471,12 @@ class _EpgSheetState extends State<_EpgSheet> {
                                 ],
                                 if (p.description != null && p.description!.isNotEmpty) ...[
                                   const SizedBox(height: 4),
-                                  Text(p.description!, style: const TextStyle(color: Colors.grey, fontSize: 10),
-                                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                                  Text(
+                                    p.description!,
+                                    style: const TextStyle(color: Colors.grey, fontSize: 10),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ],
                               ]),
                             );

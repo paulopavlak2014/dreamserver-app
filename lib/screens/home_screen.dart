@@ -83,22 +83,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   return Tooltip(
                     message: item.label,
                     preferBelow: false,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => setState(() => _tab = i),
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: sel ? kRed.withOpacity(0.2) : Colors.transparent,
-                            borderRadius: BorderRadius.circular(10),
-                            border: sel ? Border.all(color: kRed.withOpacity(0.5)) : null,
-                          ),
-                          child: Icon(item.icon, color: sel ? kRed : Colors.grey, size: 22),
-                        ),
-                      ),
+                    child: _NavFocusItem(
+                      selected: sel,
+                      icon: item.icon,
+                      onTap: () => setState(() => _tab = i),
                     ),
                   );
                 },
