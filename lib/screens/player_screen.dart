@@ -58,7 +58,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _player = Player(
       configuration: const PlayerConfiguration(
-        bufferSize: 16 * 1024 * 1024,
+        bufferSize: 32 * 1024 * 1024,
       ),
     );
     _controller = VideoController(
@@ -92,10 +92,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   Future<void> _open() async {
-    setState(() { _error = false; _buffering = true; });
+    setState(() {
+      _error = false;
+      _buffering = true;
+    });
     try {
-      await _player.open(Media(widget.url));
+      // play: true = vídeo começa sozinho, sem precisar apertar play
+      await _player.open(Media(widget.url), play: true);
       await _player.setPlaylistMode(PlaylistMode.none);
+      await _player.play();
     } catch (_) {
       if (mounted) setState(() => _error = true);
     }
@@ -117,7 +122,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     setState(() {
       _aspectMode = switch (_aspectMode) {
         AspectMode.wide => AspectMode.fit,
-        AspectMode.fit  => AspectMode.full,
+        AspectMode.fit => AspectMode.full,
         AspectMode.full => AspectMode.wide,
       };
     });
@@ -126,23 +131,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   double? get _aspectRatio {
     switch (_aspectMode) {
-      case AspectMode.wide: return 16 / 9;
-      case AspectMode.fit:  return 4 / 3;
-      case AspectMode.full: return null;
+      case AspectMode.wide:
+        return 16 / 9;
+      case AspectMode.fit:
+        return 4 / 3;
+      case AspectMode.full:
+        return null;
     }
   }
 
   String get _aspectLabel {
     switch (_aspectMode) {
-      case AspectMode.wide: return '16:9';
-      case AspectMode.fit:  return '4:3';
-      case AspectMode.full: return 'Preencher';
+      case AspectMode.wide:
+        return '16:9';
+      case AspectMode.fit:
+        return '4:3';
+      case AspectMode.full:
+        return 'Preencher';
     }
   }
 
-  // ── Player externo ──────────────────────────────────────
   void _openExternal(String app) async {
-    // Pausa o player interno antes de abrir o externo
     await _player.pause();
 
     Uri uri;
@@ -177,7 +186,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-      // Retoma o player interno se o externo não abriu
       await _player.play();
     }
   }
@@ -195,9 +203,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               margin: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                  color: Colors.white24, borderRadius: BorderRadius.circular(2)),
             ),
             const Padding(
               padding: EdgeInsets.only(bottom: 8),
@@ -208,19 +218,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
               icon: Icons.play_circle_fill_rounded,
               label: 'VLC Media Player',
               subtitle: 'com.videolan.vlc',
-              onTap: () { Navigator.pop(context); _openExternal('vlc'); },
+              onTap: () {
+                Navigator.pop(context);
+                _openExternal('vlc');
+              },
             ),
             _ExternalOption(
               icon: Icons.smart_display_rounded,
               label: 'MX Player',
               subtitle: 'com.mxtech.videoplayer.ad',
-              onTap: () { Navigator.pop(context); _openExternal('mx'); },
+              onTap: () {
+                Navigator.pop(context);
+                _openExternal('mx');
+              },
             ),
             _ExternalOption(
               icon: Icons.open_in_new_rounded,
               label: 'Outro player',
               subtitle: 'Abre com o app padrão do sistema',
-              onTap: () { Navigator.pop(context); _openExternal('other'); },
+              onTap: () {
+                Navigator.pop(context);
+                _openExternal('other');
+              },
             ),
             const SizedBox(height: 8),
           ],
@@ -247,28 +266,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
       body: GestureDetector(
         onTap: _toggleControls,
         child: Stack(children: [
-          // Vídeo
           Center(
             child: _error
                 ? _ErrorView(onRetry: _open)
                 : AspectRatio(
-                    aspectRatio: _aspectRatio ?? MediaQuery.of(context).size.aspectRatio,
+                    aspectRatio:
+                        _aspectRatio ?? MediaQuery.of(context).size.aspectRatio,
                     child: Video(
                       controller: _controller,
                       controls: NoVideoControls,
-                      fit: _aspectMode == AspectMode.full ? BoxFit.cover : BoxFit.contain,
+                      fit: _aspectMode == AspectMode.full
+                          ? BoxFit.cover
+                          : BoxFit.contain,
                     ),
                   ),
           ),
-
-          // Buffering
           if (_buffering && !_error)
             const Center(child: CircularProgressIndicator(color: _kRed)),
-
-          // OSD — aviso de canal por 7s
           if (_showOsd)
             Positioned(
-              left: 0, right: 0, bottom: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
               child: GestureDetector(
                 onTap: () => setState(() => _showOsd = false),
                 child: Container(
@@ -283,8 +302,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     if (widget.channelLogo != null)
                       Padding(
                         padding: const EdgeInsets.only(right: 12),
-                        child: Image.network(widget.channelLogo!, width: 44, height: 44,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.white, size: 32)),
+                        child: Image.network(
+                          widget.channelLogo!,
+                          width: 44,
+                          height: 44,
+                          errorBuilder: (_, __, ___) => const Icon(
+                              Icons.live_tv,
+                              color: Colors.white,
+                              size: 32),
+                        ),
                       ),
                     Expanded(
                       child: Column(
@@ -293,35 +319,54 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         children: [
                           Row(children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(3)),
-                              child: const Text('AO VIVO', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                  color: _kRed,
+                                  borderRadius: BorderRadius.circular(3)),
+                              child: const Text('AO VIVO',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.bold)),
                             ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(widget.title,
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
                             ),
                           ]),
                           const SizedBox(height: 4),
                           if (_currentProgram != null) ...[
                             Text(_currentProgram!.title,
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
                             const SizedBox(height: 4),
                             ClipRRect(
                               borderRadius: BorderRadius.circular(3),
                               child: LinearProgressIndicator(
-                                value: _currentProgram!.progress, minHeight: 3,
+                                value: _currentProgram!.progress,
+                                minHeight: 3,
                                 backgroundColor: Colors.white24,
-                                valueColor: const AlwaysStoppedAnimation(_kRed),
+                                valueColor:
+                                    const AlwaysStoppedAnimation(_kRed),
                               ),
                             ),
                             const SizedBox(height: 2),
-                            Text(_currentProgram!.timeRange, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                            Text(_currentProgram!.timeRange,
+                                style: const TextStyle(
+                                    color: Colors.grey, fontSize: 10)),
                           ] else
-                            const Text('Carregando programação...', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            const Text('Carregando programação...',
+                                style:
+                                    TextStyle(color: Colors.grey, fontSize: 11)),
                         ],
                       ),
                     ),
@@ -329,19 +374,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ),
               ),
             ),
-
-          // Controles — topo
           if (_controlsVisible)
             Positioned(
-              top: 0, left: 0, right: 0,
+              top: 0,
+              left: 0,
+              right: 0,
               child: Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                     colors: [Colors.black87, Colors.transparent],
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Row(children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -349,54 +396,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                   Expanded(
                     child: Text(widget.title,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
                   ),
-
-                  // Botão aspect ratio
                   GestureDetector(
                     onTap: _cycleAspect,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: Colors.white12,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(color: Colors.white24),
                       ),
                       child: Row(children: [
-                        const Icon(Icons.aspect_ratio, color: Colors.white, size: 16),
+                        const Icon(Icons.aspect_ratio,
+                            color: Colors.white, size: 16),
                         const SizedBox(width: 4),
-                        Text(_aspectLabel, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                        Text(_aspectLabel,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 12)),
                       ]),
                     ),
                   ),
-
-                  const SizedBox(width: 8),
-
-                  // Botão player externo ← NOVO
-                  GestureDetector(
-                    onTap: _showExternalMenu,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.white12,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.white24),
-                      ),
-                      child: const Row(children: [
-                        Icon(Icons.open_in_new_rounded, color: Colors.white, size: 16),
-                        SizedBox(width: 4),
-                        Text('Externo', style: TextStyle(color: Colors.white, fontSize: 12)),
-                      ]),
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.open_in_new, color: Colors.white),
+                    tooltip: 'Player externo',
+                    onPressed: _showExternalMenu,
                   ),
-
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                 ]),
               ),
             ),
-
-          // Play/Pause central
           if (_controlsVisible && !_error)
             Center(
               child: StreamBuilder<bool>(
@@ -417,7 +452,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       ),
                       child: Icon(
                         playing ? Icons.pause : Icons.play_arrow,
-                        color: Colors.white, size: 36,
+                        color: Colors.white,
+                        size: 36,
                       ),
                     ),
                   );
@@ -430,7 +466,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 }
 
-// ── Widget de opção no bottom sheet ─────────────────────
 class _ExternalOption extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -447,19 +482,14 @@ class _ExternalOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(color: _kRed.withOpacity(0.15), shape: BoxShape.circle),
-        child: Icon(icon, color: _kRed, size: 20),
-      ),
-      title: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+      leading: Icon(icon, color: _kRed, size: 28),
+      title: Text(label, style: const TextStyle(color: Colors.white)),
       subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 11)),
       onTap: onTap,
     );
   }
 }
 
-// ── Tela de erro ─────────────────────────────────────────
 class _ErrorView extends StatelessWidget {
   final VoidCallback onRetry;
   const _ErrorView({required this.onRetry});
@@ -471,12 +501,14 @@ class _ErrorView extends StatelessWidget {
       children: [
         const Icon(Icons.error_outline, color: _kRed, size: 40),
         const SizedBox(height: 8),
-        const Text('Erro ao carregar stream.', style: TextStyle(color: Colors.white)),
+        const Text('Erro ao carregar stream.',
+            style: TextStyle(color: Colors.white)),
         const SizedBox(height: 12),
         TextButton.icon(
           onPressed: onRetry,
           icon: const Icon(Icons.refresh, color: _kRed),
-          label: const Text('Tentar novamente', style: TextStyle(color: _kRed)),
+          label:
+              const Text('Tentar novamente', style: TextStyle(color: _kRed)),
         ),
       ],
     );
