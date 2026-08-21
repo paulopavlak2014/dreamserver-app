@@ -153,7 +153,23 @@ class _SeriesScreenState extends State<SeriesScreen> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const SizedBox(height: 50),
+        const SizedBox(height: 40),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          child: Row(children: [
+            const Text('Séries', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Spacer(),
+            Text('${_filtered.length} itens', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.grey, size: 20),
+              onPressed: () {
+                setState(() => _loading = true);
+                _load();
+              },
+              tooltip: 'Recarregar',
+            ),
+          ]),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: TextField(

@@ -17,9 +17,9 @@ class Channel {
     final sid = j['stream_id']?.toString() ?? '';
     return Channel(
       id: sid,
-      name: j['name'] ?? '',
+      name: j['name']?.toString() ?? '',
       streamUrl: '$baseUrl/live/$user/$pass/$sid.ts',
-      logo: j['stream_icon'],
+      logo: j['stream_icon']?.toString(),
       category: j['category_id']?.toString(),
     );
   }
@@ -50,14 +50,14 @@ class Movie {
 
   factory Movie.fromJson(Map<String, dynamic> j, String baseUrl, String user, String pass) {
     final sid = j['stream_id']?.toString() ?? '';
-    final ext = j['container_extension'] ?? 'mp4';
+    final ext = (j['container_extension'] ?? 'mp4').toString();
     return Movie(
       id: sid,
-      name: j['name'] ?? '',
+      name: j['name']?.toString() ?? '',
       streamUrl: '$baseUrl/movie/$user/$pass/$sid.$ext',
-      cover: j['stream_icon'] ?? j['cover'],
-      plot: j['plot'],
-      genre: j['genre'],
+      cover: (j['stream_icon'] ?? j['cover'])?.toString(),
+      plot: j['plot']?.toString(),
+      genre: j['genre']?.toString(),
       rating: j['rating']?.toString(),
       year: j['year']?.toString(),
       categoryId: j['category_id']?.toString(),
@@ -88,11 +88,11 @@ class Series {
 
   factory Series.fromJson(Map<String, dynamic> j) {
     return Series(
-      id: j['series_id']?.toString() ?? '',
-      name: j['name'] ?? '',
-      cover: j['cover'],
-      plot: j['plot'],
-      genre: j['genre'],
+      id: (j['series_id'] ?? j['stream_id'] ?? '').toString(),
+      name: (j['name'] ?? j['title'] ?? '').toString(),
+      cover: (j['cover'] ?? j['stream_icon'] ?? j['poster'])?.toString(),
+      plot: j['plot']?.toString(),
+      genre: j['genre']?.toString(),
       rating: j['rating']?.toString(),
       year: j['year']?.toString(),
       categoryId: j['category_id']?.toString(),

@@ -15,7 +15,7 @@ class XtreamService {
 
   Future<bool> authenticate() async {
     try {
-      final r = await http.get(Uri.parse(_api)).timeout(const Duration(seconds: 10));
+      final r = await http.get(Uri.parse(_api)).timeout(const Duration(seconds: 15));
       if (r.statusCode == 200) {
         final data = jsonDecode(r.body);
         return data['user_info'] != null &&
@@ -31,10 +31,14 @@ class XtreamService {
     try {
       final r = await http
           .get(Uri.parse('$_api&action=get_live_streams'))
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 45));
       if (r.statusCode == 200) {
-        final List data = jsonDecode(r.body);
-        return data.map((j) => Channel.fromJson(j, baseUrl, username, password)).toList();
+        final decoded = jsonDecode(r.body);
+        if (decoded is! List) return [];
+        return decoded
+            .whereType<Map>()
+            .map((j) => Channel.fromJson(Map<String, dynamic>.from(j), baseUrl, username, password))
+            .toList();
       }
     } catch (_) {}
     return [];
@@ -48,10 +52,14 @@ class XtreamService {
     try {
       final r = await http
           .get(Uri.parse('$_api&action=$action'))
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 20));
       if (r.statusCode == 200) {
-        final List data = jsonDecode(r.body);
-        return data.map((j) => Category.fromJson(j)).toList();
+        final decoded = jsonDecode(r.body);
+        if (decoded is! List) return [];
+        return decoded
+            .whereType<Map>()
+            .map((j) => Category.fromJson(Map<String, dynamic>.from(j)))
+            .toList();
       }
     } catch (_) {}
     return [];
@@ -61,10 +69,19 @@ class XtreamService {
     try {
       final r = await http
           .get(Uri.parse('$_api&action=get_vod_streams'))
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 60));
       if (r.statusCode == 200) {
-        final List data = jsonDecode(r.body);
-        return data.map((j) => Movie.fromJson(j, baseUrl, username, password)).toList();
+        final decoded = jsonDecode(r.body);
+        if (decoded is! List) return [];
+        final list = <Movie>[];
+        for (final j in decoded) {
+          if (j is Map) {
+            try {
+              list.add(Movie.fromJson(Map<String, dynamic>.from(j), baseUrl, username, password));
+            } catch (_) {}
+          }
+        }
+        return list;
       }
     } catch (_) {}
     return [];
@@ -74,10 +91,20 @@ class XtreamService {
     try {
       final r = await http
           .get(Uri.parse('$_api&action=get_series'))
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 90));
       if (r.statusCode == 200) {
-        final List data = jsonDecode(r.body);
-        return data.map((j) => Series.fromJson(j)).toList();
+        final decoded = jsonDecode(r.body);
+        if (decoded is! List) return [];
+        final list = <Series>[];
+        for (final j in decoded) {
+          if (j is Map) {
+            try {
+              final s = Series.fromJson(Map<String, dynamic>.from(j));
+              if (s.id.isNotEmpty && s.name.isNotEmpty) list.add(s);
+            } catch (_) {}
+          }
+        }
+        return list;
       }
     } catch (_) {}
     return [];
@@ -87,7 +114,7 @@ class XtreamService {
     try {
       final r = await http
           .get(Uri.parse('$_api&action=get_series_info&series_id=$seriesId'))
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 30));
       if (r.statusCode == 200) {
         return jsonDecode(r.body) as Map<String, dynamic>;
       }
@@ -99,7 +126,6 @@ class XtreamService {
     return '$baseUrl/series/$username/$password/$episodeId.$ext';
   }
 
-  /// Busca EPG simples por stream_id
   Future<List<EpgProgram>> getEpgForChannel(String streamId) async {
     try {
       final url = '$_api&action=get_simple_data_table&stream_id=$streamId';
@@ -113,7 +139,6 @@ class XtreamService {
     return [];
   }
 
-  /// Busca só o programa atual (usado no aviso ao trocar de canal)
   Future<EpgProgram?> getCurrentProgram(String streamId) async {
     final list = await getEpgForChannel(streamId);
     final now = DateTime.now();
@@ -123,15 +148,12 @@ class XtreamService {
     return null;
   }
 
-  /// Busca a grade de EPG para uma lista de canais (usado na tela de EPG).
-  /// Faz uma chamada por canal em paralelo (limitando concorrência) para
-  /// evitar sobrecarregar o painel e travar a tela.
   Future<List<EpgChannel>> getEpg({
     required List<Channel> channels,
     int limit = 6,
   }) async {
     final result = <EpgChannel>[];
-    const batchSize = 8; // evita disparar muitas requisições de uma vez
+    const batchSize = 8;
 
     for (var i = 0; i < channels.length; i += batchSize) {
       final batch = channels.skip(i).take(batchSize).toList();
@@ -162,11 +184,10 @@ class XtreamService {
     return [];
   }
 
-  /// Busca EPG de todos os canais (short EPG)
   Future<Map<String, List<EpgProgram>>> getShortEpg() async {
     try {
       final url = '$_api&action=get_short_epg&stream_id=all&limit=4';
-      final r = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
+      final r = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
       if (r.statusCode == 200) {
         final data = jsonDecode(r.body);
         final Map<String, List<EpgProgram>> result = {};
