@@ -28,7 +28,7 @@ class DreamServerApp extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0D0D0D),
         colorScheme: const ColorScheme.dark(primary: Color(0xFFE50914)),
-        // MaterialStateProperty = Flutter 3.19; WidgetStateProperty = 3.22+
+        // MaterialStateProperty = Flutter 3.19; 
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: const Color(0xFF141414),
           indicatorColor: const Color(0xFFE50914),

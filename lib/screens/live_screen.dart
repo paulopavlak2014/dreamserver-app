@@ -403,7 +403,7 @@ class _EpgSheetState extends State<_EpgSheet> {
                 width: 36,
                 height: 24,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.grey, size: 18),
+                errorWidget: (_, __, ___) => const Icon(Icons.live_tv, color: Colors.grey, size: 18),
               ),
             const SizedBox(width: 8),
             Expanded(

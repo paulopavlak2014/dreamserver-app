@@ -351,6 +351,58 @@ class _MovieCard extends StatelessWidget {
   }
 }
 
+
+class _NavFocusItem extends StatefulWidget {
+  final bool selected;
+  final IconData icon;
+  final VoidCallback onTap;
+  const _NavFocusItem({required this.selected, required this.icon, required this.onTap});
+  @override
+  State<_NavFocusItem> createState() => _NavFocusItemState();
+}
+
+class _NavFocusItemState extends State<_NavFocusItem> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return FocusableActionDetector(
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) {
+          widget.onTap();
+          return null;
+        }),
+      },
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: widget.selected
+                ? kRed.withOpacity(0.2)
+                : (_focused ? kRed.withOpacity(0.12) : Colors.transparent),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _focused
+                  ? kRed
+                  : (widget.selected ? kRed.withOpacity(0.5) : Colors.transparent),
+              width: 2,
+            ),
+          ),
+          child: Icon(
+            widget.icon,
+            color: widget.selected || _focused ? kRed : Colors.grey,
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _NavItem {
   final IconData icon;
   final String label;
