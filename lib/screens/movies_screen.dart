@@ -71,7 +71,20 @@ class _MoviesScreenState extends State<MoviesScreen> {
         ),
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator(color: _kRed))
+              ? const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: _kRed),
+                      SizedBox(height: 16),
+                      Text('Carregando filmes por categoria...',
+                          style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      SizedBox(height: 4),
+                      Text('Pode levar 1–3 minutos na 1ª vez',
+                          style: TextStyle(color: Colors.white24, fontSize: 11)),
+                    ],
+                  ),
+                )
               : _filtered.isEmpty
                   ? const Center(
                       child: Text('Nenhum filme encontrado', style: TextStyle(color: Colors.grey)))

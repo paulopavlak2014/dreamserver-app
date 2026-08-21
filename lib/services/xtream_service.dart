@@ -65,29 +65,53 @@ class XtreamService {
     return [];
   }
 
+
+  /// Filmes: por categoria (painel limita lista geral em bibliotecas grandes).
   Future<List<Movie>> getMovies() async {
-    try {
-      final r = await http
-          .get(Uri.parse('$_api&action=get_vod_streams'))
-          .timeout(const Duration(seconds: 60));
-      if (r.statusCode == 200) {
-        final decoded = jsonDecode(r.body);
-        if (decoded is! List) return [];
-        final list = <Movie>[];
-        for (final j in decoded) {
-          if (j is Map) {
-            try {
-              list.add(Movie.fromJson(Map<String, dynamic>.from(j), baseUrl, username, password));
-            } catch (_) {}
-          }
+    final cats = await getVodCategories();
+    final seen = <String>{};
+    final result = <Movie>[];
+
+    if (cats.isNotEmpty) {
+      for (final cat in cats) {
+        final list = await _getMoviesRaw(cat.id);
+        for (final m in list) {
+          if (m.id.isNotEmpty && seen.add(m.id)) result.add(m);
         }
-        return list;
       }
-    } catch (_) {}
-    return [];
+    }
+
+    // complementa lista geral
+    final all = await _getMoviesRaw(null);
+    for (final m in all) {
+      if (m.id.isNotEmpty && seen.add(m.id)) result.add(m);
+    }
+    return result;
   }
 
-  /// 1) Lista completa  2) Se vazio, carrega por categoria
+  Future<List<Movie>> _getMoviesRaw(String? categoryId) async {
+    try {
+      var url = '$_api&action=get_vod_streams';
+      if (categoryId != null && categoryId.isNotEmpty) {
+        url += '&category_id=$categoryId';
+      }
+      final r = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 45));
+      if (r.statusCode != 200 || r.body.isEmpty) return [];
+      final decoded = jsonDecode(r.body);
+      if (decoded is! List) return [];
+      final list = <Movie>[];
+      for (final j in decoded) {
+        if (j is Map) {
+          try {
+            list.add(Movie.fromJson(Map<String, dynamic>.from(j), baseUrl, username, password));
+          } catch (_) {}
+        }
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
 
   /// SEMPRE por categoria — get_series sem filtro só traz poucos itens no painel.
   Future<List<Series>> getSeries() async {
