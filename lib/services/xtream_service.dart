@@ -52,7 +52,7 @@ class XtreamService {
     try {
       final r = await http
           .get(Uri.parse('$_api&action=$action'))
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 25));
       if (r.statusCode == 200) {
         final decoded = jsonDecode(r.body);
         if (decoded is! List) return [];
@@ -87,27 +87,52 @@ class XtreamService {
     return [];
   }
 
+  /// 1) Lista completa  2) Se vazio, carrega por categoria
   Future<List<Series>> getSeries() async {
-    try {
-      final r = await http
-          .get(Uri.parse('$_api&action=get_series'))
-          .timeout(const Duration(seconds: 90));
-      if (r.statusCode == 200) {
-        final decoded = jsonDecode(r.body);
-        if (decoded is! List) return [];
-        final list = <Series>[];
-        for (final j in decoded) {
-          if (j is Map) {
-            try {
-              final s = Series.fromJson(Map<String, dynamic>.from(j));
-              if (s.id.isNotEmpty && s.name.isNotEmpty) list.add(s);
-            } catch (_) {}
-          }
+    final all = await _getSeriesRaw(null);
+    if (all.isNotEmpty) return all;
+
+    final cats = await getSeriesCategories();
+    if (cats.isEmpty) return [];
+
+    final seen = <String>{};
+    final result = <Series>[];
+    const batch = 5;
+    for (var i = 0; i < cats.length; i += batch) {
+      final chunk = cats.skip(i).take(batch).toList();
+      final lists = await Future.wait(chunk.map((c) => _getSeriesRaw(c.id)));
+      for (final list in lists) {
+        for (final s in list) {
+          if (seen.add(s.id)) result.add(s);
         }
-        return list;
       }
-    } catch (_) {}
-    return [];
+    }
+    return result;
+  }
+
+  Future<List<Series>> _getSeriesRaw(String? categoryId) async {
+    try {
+      var url = '$_api&action=get_series';
+      if (categoryId != null && categoryId.isNotEmpty) {
+        url += '&category_id=$categoryId';
+      }
+      final r = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 60));
+      if (r.statusCode != 200) return [];
+      final decoded = jsonDecode(r.body);
+      if (decoded is! List) return [];
+      final list = <Series>[];
+      for (final j in decoded) {
+        if (j is Map) {
+          try {
+            final s = Series.fromJson(Map<String, dynamic>.from(j));
+            if (s.id.isNotEmpty) list.add(s);
+          } catch (_) {}
+        }
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<Map<String, dynamic>?> getSeriesInfo(String seriesId) async {
@@ -154,7 +179,6 @@ class XtreamService {
   }) async {
     final result = <EpgChannel>[];
     const batchSize = 8;
-
     for (var i = 0; i < channels.length; i += batchSize) {
       final batch = channels.skip(i).take(batchSize).toList();
       final programsList = await Future.wait(
@@ -182,25 +206,5 @@ class XtreamService {
       }
     } catch (_) {}
     return [];
-  }
-
-  Future<Map<String, List<EpgProgram>>> getShortEpg() async {
-    try {
-      final url = '$_api&action=get_short_epg&stream_id=all&limit=4';
-      final r = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
-      if (r.statusCode == 200) {
-        final data = jsonDecode(r.body);
-        final Map<String, List<EpgProgram>> result = {};
-        if (data is Map) {
-          data.forEach((key, value) {
-            if (value is List) {
-              result[key] = value.map((e) => EpgProgram.fromJson(e)).toList();
-            }
-          });
-        }
-        return result;
-      }
-    } catch (_) {}
-    return {};
   }
 }

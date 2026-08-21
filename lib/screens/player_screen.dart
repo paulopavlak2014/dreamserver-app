@@ -5,6 +5,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../models/epg.dart';
 import '../services/xtream_service.dart';
+import '../services/player_prefs.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 const _kRed = Color(0xFFE50914);
 
@@ -103,13 +105,36 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
   }
 
+  Future<void> _openExternalPreferred(String app) async {
+    Uri uri;
+    switch (app) {
+      case 'vlc':
+        uri = Uri.parse('vlc://${widget.url}');
+        break;
+      case 'mx':
+        uri = Uri.parse('intent:${widget.url}#Intent;package=com.mxtech.videoplayer.ad;end');
+        break;
+      default:
+        uri = Uri.parse(widget.url);
+    }
+    final ok = await canLaunchUrl(uri);
+    if (ok) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
   Future<void> _open() async {
     setState(() {
       _error = false;
       _buffering = true;
     });
     try {
-      // play: true = inicia sozinho, sem precisar apertar play
+      final pref = await PlayerPrefs.get();
+      if (pref != 'internal') {
+        await _openExternalPreferred(pref);
+        // se externo não abriu, continua no interno
+      }
       await _player.open(
         Media(widget.url),
         play: widget.autoPlay,

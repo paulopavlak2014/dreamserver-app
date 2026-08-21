@@ -34,12 +34,22 @@ class _SeriesScreenState extends State<SeriesScreen> {
   }
 
   Future<void> _load() async {
-    final data = await widget.service.getSeries();
-    setState(() {
-      _series = data;
-      _filtered = data;
-      _loading = false;
-    });
+    try {
+      final data = await widget.service.getSeries();
+      if (!mounted) return;
+      setState(() {
+        _series = data;
+        _filtered = data;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _series = [];
+        _filtered = [];
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _openSeries(Series s) async {
