@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/xtream_service.dart';
+import '../services/favorites_service.dart';
 import '../models/channel.dart';
 import 'player_screen.dart';
+
+const _kRed = Color(0xFFE50914);
 
 class SeriesScreen extends StatefulWidget {
   final XtreamService service;
@@ -44,13 +47,13 @@ class _SeriesScreenState extends State<SeriesScreen> {
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFFE50914)),
+        child: CircularProgressIndicator(color: _kRed),
       ),
     );
 
     final info = await widget.service.getSeriesInfo(s.id);
     if (!mounted) return;
-    Navigator.pop(context); // close loading
+    Navigator.pop(context);
 
     if (info == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -123,7 +126,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
                           'S${ep['season'] ?? '?'} E${ep['episode_num'] ?? '?'}',
                           style: const TextStyle(color: Colors.grey),
                         ),
-                        trailing: const Icon(Icons.play_arrow, color: Color(0xFFE50914)),
+                        trailing: const Icon(Icons.play_arrow, color: _kRed),
                         onTap: () {
                           Navigator.pop(ctx);
                           final url = widget.service.seriesEpisodeUrl(s.id, id, ext);
@@ -171,9 +174,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
         ),
         Expanded(
           child: _loading
-              ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFE50914)),
-                )
+              ? const Center(child: CircularProgressIndicator(color: _kRed))
               : _filtered.isEmpty
                   ? const Center(
                       child: Text(
@@ -192,70 +193,121 @@ class _SeriesScreenState extends State<SeriesScreen> {
                       itemCount: _filtered.length,
                       itemBuilder: (_, i) {
                         final s = _filtered[i];
-                        return GestureDetector(
-                          onTap: () => _openSeries(s),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                s.cover != null
-                                    ? CachedNetworkImage(
-                                        imageUrl: s.cover!,
-                                        fit: BoxFit.cover,
-                                        errorWidget: (_, __, ___) =>
-                                            Container(
-                                          color: const Color(0xFF1A1A1A),
-                                          child: const Icon(
-                                            Icons.tv,
-                                            color: Colors.grey,
-                                            size: 32,
-                                          ),
-                                        ),
-                                      )
-                                    : Container(
-                                        color: const Color(0xFF1A1A1A),
-                                        child: const Icon(
-                                          Icons.tv,
-                                          color: Colors.grey,
-                                          size: 32,
-                                        ),
-                                      ),
-                                Positioned(
-                                  bottom: 0,
-                                  left: 0,
-                                  right: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(5),
-                                    decoration: const BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.bottomCenter,
-                                        end: Alignment.topCenter,
-                                        colors: [
-                                          Colors.black87,
-                                          Colors.transparent
-                                        ],
-                                      ),
-                                    ),
-                                    child: Text(
-                                      s.name,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        return _SeriesTile(
+                          series: s,
+                          onOpen: () => _openSeries(s),
                         );
                       },
                     ),
         ),
       ],
+    );
+  }
+}
+
+class _SeriesTile extends StatefulWidget {
+  final Series series;
+  final VoidCallback onOpen;
+  const _SeriesTile({required this.series, required this.onOpen});
+
+  @override
+  State<_SeriesTile> createState() => _SeriesTileState();
+}
+
+class _SeriesTileState extends State<_SeriesTile> {
+  bool _isFav = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    // séries usam id como chave de favorito (não tem streamUrl único na listagem)
+    final key = 'series:${widget.series.id}';
+    final ok = await FavoritesService.isFavorite(key);
+    if (mounted) setState(() => _isFav = ok);
+  }
+
+  Future<void> _toggleFav() async {
+    final key = 'series:${widget.series.id}';
+    await FavoritesService.toggle({
+      'id': widget.series.id,
+      'title': widget.series.name,
+      'url': key,
+      'type': 'serie',
+      'category': widget.series.categoryId ?? '',
+    });
+    if (mounted) setState(() => _isFav = !_isFav);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.series;
+    return GestureDetector(
+      onTap: widget.onOpen,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            s.cover != null
+                ? CachedNetworkImage(
+                    imageUrl: s.cover!,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Container(
+                      color: const Color(0xFF1A1A1A),
+                      child: const Icon(Icons.tv, color: Colors.grey, size: 32),
+                    ),
+                  )
+                : Container(
+                    color: const Color(0xFF1A1A1A),
+                    child: const Icon(Icons.tv, color: Colors.grey, size: 32),
+                  ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: _toggleFav,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    _isFav ? Icons.star_rounded : Icons.star_border_rounded,
+                    color: _isFav ? Colors.amber : Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(5),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [Colors.black87, Colors.transparent],
+                  ),
+                ),
+                child: Text(
+                  s.name,
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

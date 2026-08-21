@@ -36,9 +36,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   void _play(Map<String, String> item) {
     final url = item['url'] ?? '';
+    final type = item['type'] ?? '';
     if (url.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('URL do favorito inválida'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    if (type == 'serie' || url.startsWith('series:')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Abra Séries no menu e busque pelo nome para assistir'),
+          backgroundColor: Color(0xFF1A1A1A),
+        ),
       );
       return;
     }

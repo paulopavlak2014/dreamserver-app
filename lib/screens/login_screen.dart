@@ -42,27 +42,13 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo / Nome
-                const Text(
-                  'DREAM',
-                  style: TextStyle(
-                    color: Color(0xFFE50914),
-                    fontSize: 48,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 8,
-                  ),
+                // Logo da marca (sem texto DREAM SERVER)
+                Image.asset(
+                  'assets/logo_ds.jpg',
+                  height: 160,
+                  fit: BoxFit.contain,
                 ),
-                const Text(
-                  'SERVER',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w300,
-                    letterSpacing: 12,
-                  ),
-                ),
-                const SizedBox(height: 48),
-                // Campos
+                const SizedBox(height: 40),
                 _Field(ctrl: _userCtrl, label: 'Usuário', icon: Icons.person),
                 const SizedBox(height: 16),
                 _Field(
