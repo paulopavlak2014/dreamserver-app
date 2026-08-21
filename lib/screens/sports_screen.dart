@@ -4,11 +4,34 @@ import 'player_screen.dart';
 const _kRed = Color(0xFFE50914);
 
 /// Fonte diária de jogos — o servidor atualiza o conteúdo desse link
-/// automaticamente todo dia, então mantemos a URL fixa.
+/// automaticamente todo dia.
 const _sportsUrl = 'https://uploads.xui-managers.site/6480001-jogos.mp4';
 
-class SportsScreen extends StatelessWidget {
+class SportsScreen extends StatefulWidget {
   const SportsScreen({super.key});
+
+  @override
+  State<SportsScreen> createState() => _SportsScreenState();
+}
+
+class _SportsScreenState extends State<SportsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Abre o player automaticamente (vídeo já rodando, sem precisar dar play)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const PlayerScreen(
+            title: 'Jogos de Hoje',
+            url: _sportsUrl,
+          ),
+        ),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +44,7 @@ class SportsScreen extends StatelessWidget {
             const Text('Esportes',
                 style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
-            const Text('Jogos do dia — atualizado automaticamente',
+            const Text('Jogos do dia — toque para assistir',
                 style: TextStyle(color: Colors.grey, fontSize: 12)),
             const SizedBox(height: 24),
             Center(
@@ -54,7 +77,7 @@ class SportsScreen extends StatelessWidget {
                       const Text('Assistir Jogos de Hoje',
                           style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 6),
-                      const Text('Toque para reproduzir',
+                      const Text('Inicia automaticamente ao abrir',
                           style: TextStyle(color: Colors.grey, fontSize: 12)),
                     ],
                   ),

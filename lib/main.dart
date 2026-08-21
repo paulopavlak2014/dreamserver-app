@@ -8,7 +8,7 @@ import 'screens/home_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // SEM ISSO O PLAYER FICA TELA CINZA
+  // Obrigatório para o media_kit — sem isso o player fica com tela cinza
   MediaKit.ensureInitialized();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
@@ -32,7 +32,7 @@ class DreamServerApp extends StatelessWidget {
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: const Color(0xFF141414),
           indicatorColor: const Color(0xFFE50914),
-          labelTextStyle: MaterialStateProperty.all(
+          labelTextStyle: WidgetStateProperty.all(
             const TextStyle(color: Colors.white, fontSize: 12),
           ),
         ),

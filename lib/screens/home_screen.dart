@@ -9,7 +9,6 @@ import 'player_screen.dart';
 import 'epg_screen.dart';
 import 'settings_screen.dart';
 import 'sports_screen.dart';
-import 'replay_screen.dart';
 import 'favorites_screen.dart';
 
 const kRed = Color(0xFFE50914);
@@ -27,6 +26,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
 
+  // Replay REMOVIDO
   static const _navItems = [
     _NavItem(Icons.home_rounded,          'Início'),
     _NavItem(Icons.live_tv_rounded,       'TV Ao Vivo'),
@@ -34,7 +34,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _NavItem(Icons.movie_rounded,         'Filmes'),
     _NavItem(Icons.tv_rounded,            'Séries'),
     _NavItem(Icons.sports_soccer_rounded, 'Esportes'),
-    _NavItem(Icons.replay_rounded,        'Replay'),
     _NavItem(Icons.star_rounded,          'Favoritos'),
     _NavItem(Icons.settings_rounded,      'Config'),
   ];
@@ -47,9 +46,8 @@ class _HomeScreenState extends State<HomeScreen> {
       case 3: return MoviesScreen(service: widget.service);
       case 4: return SeriesScreen(service: widget.service);
       case 5: return const SportsScreen();
-      case 6: return const ReplayScreen();
-      case 7: return const FavoritesScreen();
-      case 8: return SettingsScreen(service: widget.service);
+      case 6: return FavoritesScreen(service: widget.service);
+      case 7: return SettingsScreen(service: widget.service);
       default: return const SizedBox.shrink();
     }
   }
@@ -64,9 +62,16 @@ class _HomeScreenState extends State<HomeScreen> {
           color: const Color(0xFF0F0F0F),
           child: Column(children: [
             const SizedBox(height: 16),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 10),
-              child: Icon(Icons.play_circle_filled, color: kRed, size: 26),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Image.asset(
+                'assets/logo_ds.jpg',
+                width: 36,
+                height: 36,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.play_circle_filled, color: kRed, size: 26),
+              ),
             ),
             const Divider(color: Colors.white12, height: 16),
             Expanded(
@@ -78,17 +83,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   return Tooltip(
                     message: item.label,
                     preferBelow: false,
-                    child: GestureDetector(
-                      onTap: () => setState(() => _tab = i),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: sel ? kRed.withOpacity(0.2) : Colors.transparent,
-                          borderRadius: BorderRadius.circular(10),
-                          border: sel ? Border.all(color: kRed.withOpacity(0.5)) : null,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => setState(() => _tab = i),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: sel ? kRed.withOpacity(0.2) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            border: sel ? Border.all(color: kRed.withOpacity(0.5)) : null,
+                          ),
+                          child: Icon(item.icon, color: sel ? kRed : Colors.grey, size: 22),
                         ),
-                        child: Icon(item.icon, color: sel ? kRed : Colors.grey, size: 22),
                       ),
                     ),
                   );
@@ -103,7 +112,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── HOME PAGE ────────────────────────────────────────────
 class _HomePage extends StatefulWidget {
   final XtreamService service;
   const _HomePage({required this.service});
@@ -137,14 +145,14 @@ class _HomePageState extends State<_HomePage> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(color: kRed));
     return CustomScrollView(slivers: [
-      SliverToBoxAdapter(child: _TopBar()),
+      const SliverToBoxAdapter(child: _TopBar()),
       if (_live.isNotEmpty) SliverToBoxAdapter(child: _Banner(
         channels: _live.take(5).toList(), index: _bannerIndex,
         controller: _pageCtrl, onChanged: (i) => setState(() => _bannerIndex = i),
         service: widget.service,
       )),
       if (_live.isNotEmpty) ...[
-        SliverToBoxAdapter(child: _SectionHeader(title: 'Canais em Destaque')),
+        const SliverToBoxAdapter(child: _SectionHeader(title: 'Canais em Destaque')),
         SliverToBoxAdapter(child: SizedBox(height: 100, child: ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -153,7 +161,7 @@ class _HomePageState extends State<_HomePage> {
         ))),
       ],
       if (_movies.isNotEmpty) ...[
-        SliverToBoxAdapter(child: _SectionHeader(title: 'Filmes Populares')),
+        const SliverToBoxAdapter(child: _SectionHeader(title: 'Filmes Populares')),
         SliverToBoxAdapter(child: SizedBox(height: 140, child: ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -167,6 +175,7 @@ class _HomePageState extends State<_HomePage> {
 }
 
 class _TopBar extends StatelessWidget {
+  const _TopBar();
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -174,8 +183,6 @@ class _TopBar extends StatelessWidget {
       child: Row(children: [
         const Text('DREAM', style: TextStyle(color: kRed, fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 3)),
         const Spacer(),
-        IconButton(icon: const Icon(Icons.search, color: Colors.white, size: 20), onPressed: () {}),
-        IconButton(icon: const Icon(Icons.notifications_none, color: Colors.white, size: 20), onPressed: () {}),
         Row(children: [
           Container(width: 7, height: 7, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
           const SizedBox(width: 4),
@@ -277,8 +284,6 @@ class _SectionHeader extends StatelessWidget {
         Container(width: 3, height: 16, decoration: BoxDecoration(color: kRed, borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: 7),
         Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-        const Spacer(),
-        const Text('Ver todos >', style: TextStyle(color: kRed, fontSize: 11)),
       ]),
     );
   }
@@ -313,7 +318,6 @@ class _ChannelCard extends StatelessWidget {
               padding: const EdgeInsets.all(5),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black, Colors.transparent]),
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
               ),
               child: Text(channel.name, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -348,7 +352,6 @@ class _MovieCard extends StatelessWidget {
               padding: const EdgeInsets.all(5),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black, Colors.transparent]),
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
               ),
               child: Text(movie.name, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600),
                   maxLines: 2, overflow: TextOverflow.ellipsis),

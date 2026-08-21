@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import '../services/favorites_service.dart';
+import '../services/xtream_service.dart';
 import 'player_screen.dart';
 
 const _kRed = Color(0xFFE50914);
 const _kCard = Color(0xFF161616);
-const _kSurface = Color(0xFF1E1E1E);
 
 class FavoritesScreen extends StatefulWidget {
-  const FavoritesScreen({super.key});
+  final XtreamService? service;
+  const FavoritesScreen({super.key, this.service});
 
   @override
   State<FavoritesScreen> createState() => _FavoritesScreenState();
@@ -30,7 +31,28 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   Future<void> _remove(Map<String, String> item) async {
     await FavoritesService.toggle(item);
-    _load();
+    await _load();
+  }
+
+  void _play(Map<String, String> item) {
+    final url = item['url'] ?? '';
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('URL do favorito inválida'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlayerScreen(
+          title: item['title'] ?? '',
+          url: url,
+          channelId: item['id'],
+          service: widget.service,
+        ),
+      ),
+    );
   }
 
   IconData _iconForType(String? type) {
@@ -48,7 +70,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
             child: Row(children: [
@@ -62,7 +83,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   style: const TextStyle(color: Colors.grey, fontSize: 12)),
             ]),
           ),
-
           if (_loading)
             const Expanded(child: Center(child: CircularProgressIndicator(color: _kRed)))
           else if (_favs.isEmpty)
@@ -74,7 +94,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   const Text('Nenhum favorito ainda',
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  const Text('Toque em ⭐ em qualquer canal, filme ou série',
+                  const Text('Toque na estrela ⭐ em qualquer canal',
                       style: TextStyle(color: Colors.grey, fontSize: 12)),
                 ]),
               ),
@@ -86,44 +106,42 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 itemCount: _favs.length,
                 itemBuilder: (_, i) {
                   final item = _favs[i];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: _kCard,
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _play(item),
                       borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                      leading: Container(
-                        width: 40, height: 40,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
                         decoration: BoxDecoration(
-                          color: _kRed.withOpacity(0.15),
-                          shape: BoxShape.circle,
+                          color: _kCard,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(_iconForType(item['type']), color: _kRed, size: 20),
-                      ),
-                      title: Text(item['title'] ?? '',
-                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                      subtitle: item['category'] != null && item['category']!.isNotEmpty
-                          ? Text(item['category']!,
-                              style: const TextStyle(color: Colors.grey, fontSize: 11))
-                          : null,
-                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded, color: Colors.grey, size: 20),
-                          onPressed: () => _remove(item),
-                          splashRadius: 18,
-                        ),
-                      ]),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PlayerScreen(
-                            title: item['title'] ?? '',
-                            url: item['url'] ?? '',
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                          leading: Container(
+                            width: 40, height: 40,
+                            decoration: BoxDecoration(
+                              color: _kRed.withOpacity(0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(_iconForType(item['type']), color: _kRed, size: 20),
                           ),
+                          title: Text(item['title'] ?? '',
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                          subtitle: item['category'] != null && item['category']!.isNotEmpty
+                              ? Text(item['category']!,
+                                  style: const TextStyle(color: Colors.grey, fontSize: 11))
+                              : null,
+                          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(Icons.play_circle_fill, color: _kRed, size: 28),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline_rounded, color: Colors.grey, size: 20),
+                              onPressed: () => _remove(item),
+                              splashRadius: 18,
+                            ),
+                          ]),
                         ),
                       ),
                     ),

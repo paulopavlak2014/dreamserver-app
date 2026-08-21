@@ -4,6 +4,7 @@ import '../services/xtream_service.dart';
 import '../models/channel.dart';
 import '../models/epg.dart';
 import 'player_screen.dart';
+import '../services/favorites_service.dart';
 
 const _kRed = Color(0xFFE50914);
 const _kCard = Color(0xFF161616);
@@ -170,6 +171,8 @@ class _LiveScreenState extends State<LiveScreen> {
                                     maxLines: 2, overflow: TextOverflow.ellipsis),
                               ),
                             ),
+                            // Favorito
+                            _FavButton(channel: c),
                             // EPG button
                             IconButton(
                               icon: const Icon(Icons.format_list_bulleted, color: Colors.grey, size: 18),
