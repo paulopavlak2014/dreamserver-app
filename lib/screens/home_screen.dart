@@ -9,6 +9,8 @@ import 'player_screen.dart';
 import 'epg_screen.dart';
 import 'settings_screen.dart';
 import 'sports_screen.dart';
+import 'replay_screen.dart';
+import 'favorites_screen.dart';
 
 const kRed = Color(0xFFE50914);
 const kBg = Color(0xFF0A0A0A);
@@ -26,15 +28,15 @@ class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
 
   static const _navItems = [
-    _NavItem(Icons.home_rounded, 'Início'),
-    _NavItem(Icons.live_tv_rounded, 'TV Ao Vivo'),
-    _NavItem(Icons.grid_view_rounded, 'EPG'),
-    _NavItem(Icons.movie_rounded, 'Filmes'),
-    _NavItem(Icons.tv_rounded, 'Séries'),
+    _NavItem(Icons.home_rounded,          'Início'),
+    _NavItem(Icons.live_tv_rounded,       'TV Ao Vivo'),
+    _NavItem(Icons.grid_view_rounded,     'EPG'),
+    _NavItem(Icons.movie_rounded,         'Filmes'),
+    _NavItem(Icons.tv_rounded,            'Séries'),
     _NavItem(Icons.sports_soccer_rounded, 'Esportes'),
-    _NavItem(Icons.replay_rounded, 'Replay'),
-    _NavItem(Icons.favorite_rounded, 'Favoritos'),
-    _NavItem(Icons.settings_rounded, 'Config'),
+    _NavItem(Icons.replay_rounded,        'Replay'),
+    _NavItem(Icons.star_rounded,          'Favoritos'),
+    _NavItem(Icons.settings_rounded,      'Config'),
   ];
 
   Widget _buildPage() {
@@ -45,8 +47,10 @@ class _HomeScreenState extends State<HomeScreen> {
       case 3: return MoviesScreen(service: widget.service);
       case 4: return SeriesScreen(service: widget.service);
       case 5: return const SportsScreen();
+      case 6: return const ReplayScreen();
+      case 7: return const FavoritesScreen();
       case 8: return SettingsScreen(service: widget.service);
-      default: return _ComingSoon(label: _navItems[_tab].label);
+      default: return const SizedBox.shrink();
     }
   }
 
@@ -353,21 +357,6 @@ class _MovieCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _ComingSoon extends StatelessWidget {
-  final String label;
-  const _ComingSoon({required this.label});
-  @override
-  Widget build(BuildContext context) {
-    return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      const Icon(Icons.construction, color: kRed, size: 40),
-      const SizedBox(height: 10),
-      Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 6),
-      const Text('Em breve...', style: TextStyle(color: Colors.grey, fontSize: 12)),
-    ]));
   }
 }
 
