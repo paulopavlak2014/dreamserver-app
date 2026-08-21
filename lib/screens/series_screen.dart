@@ -200,7 +200,20 @@ class _SeriesScreenState extends State<SeriesScreen> {
         ),
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator(color: _kRed))
+              ? const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: _kRed),
+                      SizedBox(height: 16),
+                      Text('Carregando séries por categoria...',
+                          style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      SizedBox(height: 4),
+                      Text('Pode levar 1–3 minutos (biblioteca grande)',
+                          style: TextStyle(color: Colors.white24, fontSize: 11)),
+                    ],
+                  ),
+                )
               : _filtered.isEmpty
                   ? const Center(
                       child: Text(
