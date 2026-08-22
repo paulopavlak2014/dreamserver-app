@@ -16,47 +16,85 @@ class MoviesScreen extends StatefulWidget {
 }
 
 class _MoviesScreenState extends State<MoviesScreen> {
-  List<Movie> _movies = [];
-  List<Movie> _filtered = [];
+  List<Movie> _all = [];
+  List<Category> _categories = [];
+  String _selectedCat = '';   // '' = Todos
+  String _search = '';
   bool _loading = true;
-  final _search = TextEditingController();
+  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load();
-    _search.addListener(() {
-      final q = _search.text.toLowerCase();
-      setState(() => _filtered = q.isEmpty
-          ? _movies
-          : _movies.where((m) => m.name.toLowerCase().contains(q)).toList());
+    _searchCtrl.addListener(() {
+      setState(() => _search = _searchCtrl.text.toLowerCase());
     });
   }
 
   Future<void> _load() async {
-    final data = await widget.service.getMovies();
+    setState(() => _loading = true);
+    final results = await Future.wait([
+      widget.service.getMovies(),
+      widget.service.getVodCategories(),
+    ]);
+    if (!mounted) return;
     setState(() {
-      _movies = data;
-      _filtered = data;
+      _all = results[0] as List<Movie>;
+      _categories = results[1] as List<Category>;
       _loading = false;
     });
   }
 
+  List<Movie> get _filtered {
+    var list = _all;
+    if (_selectedCat.isNotEmpty) {
+      list = list.where((m) => m.categoryId == _selectedCat).toList();
+    }
+    if (_search.isNotEmpty) {
+      list = list.where((m) => m.name.toLowerCase().contains(_search)).toList();
+    }
+    return list;
+  }
+
   @override
   void dispose() {
-    _search.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 50),
+        const SizedBox(height: 16),
+
+        // Título + contador
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(children: [
+            Container(width: 3, height: 16,
+                decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 8),
+            const Text('Filmes',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Spacer(),
+            Text('${_filtered.length} filmes',
+                style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.grey, size: 20),
+              onPressed: _load,
+              tooltip: 'Recarregar',
+            ),
+          ]),
+        ),
+
+        // Busca
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: TextField(
-            controller: _search,
+            controller: _searchCtrl,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               hintText: 'Buscar filme...',
@@ -66,30 +104,62 @@ class _MoviesScreenState extends State<MoviesScreen> {
               fillColor: const Color(0xFF1A1A1A),
               border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
           ),
         ),
+
+        // Chips de categoria
+        if (_categories.isNotEmpty)
+          SizedBox(
+            height: 38,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _categories.length + 1,
+              itemBuilder: (_, i) {
+                final isAll = i == 0;
+                final cat = isAll ? null : _categories[i - 1];
+                final active = isAll ? _selectedCat.isEmpty : _selectedCat == cat!.id;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(isAll ? 'Todos' : cat!.name,
+                        style: TextStyle(
+                            color: active ? Colors.white : Colors.grey,
+                            fontSize: 11)),
+                    selected: active,
+                    onSelected: (_) => setState(() =>
+                        _selectedCat = isAll ? '' : cat!.id),
+                    selectedColor: _kRed,
+                    backgroundColor: const Color(0xFF1E1E1E),
+                    side: BorderSide(
+                        color: active ? _kRed : Colors.white12),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                );
+              },
+            ),
+          ),
+
+        const SizedBox(height: 8),
+
+        // Grid
         Expanded(
           child: _loading
-              ? const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(color: _kRed),
-                      SizedBox(height: 16),
-                      Text('Carregando filmes por categoria...',
-                          style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      SizedBox(height: 4),
-                      Text('Pode levar 1–3 minutos na 1ª vez',
-                          style: TextStyle(color: Colors.white24, fontSize: 11)),
-                    ],
-                  ),
-                )
+              ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  CircularProgressIndicator(color: _kRed),
+                  SizedBox(height: 16),
+                  Text('Carregando filmes...', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  SizedBox(height: 4),
+                  Text('Pode levar alguns instantes', style: TextStyle(color: Colors.white24, fontSize: 11)),
+                ]))
               : _filtered.isEmpty
-                  ? const Center(
-                      child: Text('Nenhum filme encontrado', style: TextStyle(color: Colors.grey)))
+                  ? const Center(child: Text('Nenhum filme encontrado',
+                      style: TextStyle(color: Colors.grey)))
                   : GridView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                         maxCrossAxisExtent: 110,
                         crossAxisSpacing: 10,
@@ -97,10 +167,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                         childAspectRatio: 2 / 3,
                       ),
                       itemCount: _filtered.length,
-                      itemBuilder: (_, i) {
-                        final m = _filtered[i];
-                        return _MovieTile(movie: m);
-                      },
+                      itemBuilder: (_, i) => _MovieTile(movie: _filtered[i]),
                     ),
         ),
       ],
@@ -111,7 +178,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
 class _MovieTile extends StatefulWidget {
   final Movie movie;
   const _MovieTile({required this.movie});
-
   @override
   State<_MovieTile> createState() => _MovieTileState();
 }
@@ -122,12 +188,8 @@ class _MovieTileState extends State<_MovieTile> {
   @override
   void initState() {
     super.initState();
-    _check();
-  }
-
-  Future<void> _check() async {
-    final ok = await FavoritesService.isFavorite(widget.movie.streamUrl);
-    if (mounted) setState(() => _isFav = ok);
+    FavoritesService.isFavorite(widget.movie.streamUrl)
+        .then((v) { if (mounted) setState(() => _isFav = v); });
   }
 
   Future<void> _toggleFav() async {
@@ -145,70 +207,41 @@ class _MovieTileState extends State<_MovieTile> {
   Widget build(BuildContext context) {
     final m = widget.movie;
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl)),
-      ),
+      onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl))),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(6),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            m.cover != null
-                ? CachedNetworkImage(
-                    imageUrl: m.cover!,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
-                      color: const Color(0xFF1A1A1A),
-                      child: const Icon(Icons.movie, color: Colors.grey, size: 32),
-                    ),
-                  )
-                : Container(
-                    color: const Color(0xFF1A1A1A),
-                    child: const Icon(Icons.movie, color: Colors.grey, size: 32),
-                  ),
-            Positioned(
-              top: 4,
-              right: 4,
-              child: GestureDetector(
-                onTap: _toggleFav,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Icon(
-                    _isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                    color: _isFav ? Colors.amber : Colors.white,
-                    size: 18,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
+        child: Stack(fit: StackFit.expand, children: [
+          m.cover != null
+              ? CachedNetworkImage(imageUrl: m.cover!, fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => Container(color: const Color(0xFF1A1A1A),
+                      child: const Icon(Icons.movie, color: Colors.grey, size: 32)))
+              : Container(color: const Color(0xFF1A1A1A),
+                  child: const Icon(Icons.movie, color: Colors.grey, size: 32)),
+          Positioned(top: 4, right: 4,
+            child: GestureDetector(
+              onTap: _toggleFav,
               child: Container(
-                padding: const EdgeInsets.all(5),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [Colors.black87, Colors.transparent],
-                  ),
-                ),
-                child: Text(
-                  m.name,
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                child: Icon(_isFav ? Icons.star_rounded : Icons.star_border_rounded,
+                    color: _isFav ? Colors.amber : Colors.white, size: 18),
               ),
             ),
-          ],
-        ),
+          ),
+          Positioned(bottom: 0, left: 0, right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                    colors: [Colors.black87, Colors.transparent]),
+              ),
+              child: Text(m.name,
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+            ),
+          ),
+        ]),
       ),
     );
   }

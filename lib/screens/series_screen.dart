@@ -16,49 +16,52 @@ class SeriesScreen extends StatefulWidget {
 }
 
 class _SeriesScreenState extends State<SeriesScreen> {
-  List<Series> _series = [];
-  List<Series> _filtered = [];
+  List<Series> _all = [];
+  List<Category> _categories = [];
+  String _selectedCat = '';
+  String _search = '';
   bool _loading = true;
-  final _search = TextEditingController();
+  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _load();
-    _search.addListener(() {
-      final q = _search.text.toLowerCase();
-      setState(() => _filtered = q.isEmpty
-          ? _series
-          : _series.where((s) => s.name.toLowerCase().contains(q)).toList());
+    _searchCtrl.addListener(() {
+      setState(() => _search = _searchCtrl.text.toLowerCase());
     });
   }
 
   Future<void> _load() async {
-    try {
-      final data = await widget.service.getSeries();
-      if (!mounted) return;
-      setState(() {
-        _series = data;
-        _filtered = data;
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _series = [];
-        _filtered = [];
-        _loading = false;
-      });
+    setState(() => _loading = true);
+    final results = await Future.wait([
+      widget.service.getSeries(),
+      widget.service.getSeriesCategories(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _all = results[0] as List<Series>;
+      _categories = results[1] as List<Category>;
+      _loading = false;
+    });
+  }
+
+  List<Series> get _filtered {
+    var list = _all;
+    if (_selectedCat.isNotEmpty) {
+      list = list.where((s) => s.categoryId == _selectedCat).toList();
     }
+    if (_search.isNotEmpty) {
+      list = list.where((s) => s.name.toLowerCase().contains(_search)).toList();
+    }
+    return list;
   }
 
   Future<void> _openSeries(Series s) async {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: _kRed),
-      ),
+      builder: (_) => const Center(child: CircularProgressIndicator(color: _kRed)),
     );
 
     final info = await widget.service.getSeriesInfo(s.id);
@@ -67,8 +70,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
 
     if (info == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível carregar os episódios.')),
-      );
+          const SnackBar(content: Text('Não foi possível carregar os episódios.')));
       return;
     }
 
@@ -86,8 +88,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
 
     if (episodes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nenhum episódio encontrado.')),
-      );
+          const SnackBar(content: Text('Nenhum episódio encontrado.')));
       return;
     }
 
@@ -97,8 +98,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
       backgroundColor: const Color(0xFF1A1A1A),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (ctx) {
         return DraggableScrollableSheet(
           expand: false,
@@ -106,53 +106,39 @@ class _SeriesScreenState extends State<SeriesScreen> {
           minChildSize: 0.3,
           maxChildSize: 0.9,
           builder: (_, scrollController) {
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    s.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
+            return Column(children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(s.name,
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: episodes.length,
+                  itemBuilder: (_, i) {
+                    final ep = episodes[i];
+                    final title = ep['title']?.toString() ??
+                        'Episódio ${ep['episode_num'] ?? (i + 1)}';
+                    final id = ep['id']?.toString() ?? '';
+                    final ext = ep['container_extension']?.toString() ?? 'mp4';
+                    return ListTile(
+                      title: Text(title, style: const TextStyle(color: Colors.white)),
+                      subtitle: Text('S${ep['season'] ?? '?'} E${ep['episode_num'] ?? '?'}',
+                          style: const TextStyle(color: Colors.grey)),
+                      trailing: const Icon(Icons.play_arrow, color: _kRed),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        final url = widget.service.seriesEpisodeUrl(s.id, id, ext);
+                        Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => PlayerScreen(title: title, url: url)));
+                      },
+                    );
+                  },
                 ),
-                Expanded(
-                  child: ListView.builder(
-                    controller: scrollController,
-                    itemCount: episodes.length,
-                    itemBuilder: (_, i) {
-                      final ep = episodes[i];
-                      final title = ep['title']?.toString() ??
-                          'Episódio ${ep['episode_num'] ?? (i + 1)}';
-                      final id = ep['id']?.toString() ?? '';
-                      final ext = ep['container_extension']?.toString() ?? 'mp4';
-                      return ListTile(
-                        title: Text(title, style: const TextStyle(color: Colors.white)),
-                        subtitle: Text(
-                          'S${ep['season'] ?? '?'} E${ep['episode_num'] ?? '?'}',
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                        trailing: const Icon(Icons.play_arrow, color: _kRed),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          final url = widget.service.seriesEpisodeUrl(s.id, id, ext);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => PlayerScreen(title: title, url: url),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            );
+              ),
+            ]);
           },
         );
       },
@@ -160,30 +146,43 @@ class _SeriesScreenState extends State<SeriesScreen> {
   }
 
   @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 40),
+        const SizedBox(height: 16),
+
+        // Título + contador
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Row(children: [
-            const Text('Séries', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            Container(width: 3, height: 16,
+                decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 8),
+            const Text('Séries',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             const Spacer(),
-            Text('${_filtered.length} itens', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            Text('${_filtered.length} séries',
+                style: const TextStyle(color: Colors.grey, fontSize: 11)),
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.grey, size: 20),
-              onPressed: () {
-                setState(() => _loading = true);
-                _load();
-              },
+              onPressed: _load,
               tooltip: 'Recarregar',
             ),
           ]),
         ),
+
+        // Busca
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: TextField(
-            controller: _search,
+            controller: _searchCtrl,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               hintText: 'Buscar série...',
@@ -192,37 +191,62 @@ class _SeriesScreenState extends State<SeriesScreen> {
               filled: true,
               fillColor: const Color(0xFF1A1A1A),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
+                  borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
           ),
         ),
+
+        // Chips de categoria
+        if (_categories.isNotEmpty)
+          SizedBox(
+            height: 38,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _categories.length + 1,
+              itemBuilder: (_, i) {
+                final isAll = i == 0;
+                final cat = isAll ? null : _categories[i - 1];
+                final active = isAll ? _selectedCat.isEmpty : _selectedCat == cat!.id;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(isAll ? 'Todos' : cat!.name,
+                        style: TextStyle(
+                            color: active ? Colors.white : Colors.grey,
+                            fontSize: 11)),
+                    selected: active,
+                    onSelected: (_) => setState(() =>
+                        _selectedCat = isAll ? '' : cat!.id),
+                    selectedColor: _kRed,
+                    backgroundColor: const Color(0xFF1E1E1E),
+                    side: BorderSide(color: active ? _kRed : Colors.white12),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                );
+              },
+            ),
+          ),
+
+        const SizedBox(height: 8),
+
+        // Grid
         Expanded(
           child: _loading
-              ? const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(color: _kRed),
-                      SizedBox(height: 16),
-                      Text('Carregando séries por categoria...',
-                          style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      SizedBox(height: 4),
-                      Text('Pode levar 1–3 minutos (biblioteca grande)',
-                          style: TextStyle(color: Colors.white24, fontSize: 11)),
-                    ],
-                  ),
-                )
+              ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  CircularProgressIndicator(color: _kRed),
+                  SizedBox(height: 16),
+                  Text('Carregando séries...', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  SizedBox(height: 4),
+                  Text('Pode levar alguns instantes', style: TextStyle(color: Colors.white24, fontSize: 11)),
+                ]))
               : _filtered.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'Nenhuma série encontrada',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    )
+                  ? const Center(child: Text('Nenhuma série encontrada',
+                      style: TextStyle(color: Colors.grey)))
                   : GridView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                         maxCrossAxisExtent: 110,
                         crossAxisSpacing: 10,
@@ -230,13 +254,9 @@ class _SeriesScreenState extends State<SeriesScreen> {
                         childAspectRatio: 2 / 3,
                       ),
                       itemCount: _filtered.length,
-                      itemBuilder: (_, i) {
-                        final s = _filtered[i];
-                        return _SeriesTile(
-                          series: s,
-                          onOpen: () => _openSeries(s),
-                        );
-                      },
+                      itemBuilder: (_, i) => _SeriesTile(
+                          series: _filtered[i],
+                          onOpen: () => _openSeries(_filtered[i])),
                     ),
         ),
       ],
@@ -248,7 +268,6 @@ class _SeriesTile extends StatefulWidget {
   final Series series;
   final VoidCallback onOpen;
   const _SeriesTile({required this.series, required this.onOpen});
-
   @override
   State<_SeriesTile> createState() => _SeriesTileState();
 }
@@ -259,14 +278,8 @@ class _SeriesTileState extends State<_SeriesTile> {
   @override
   void initState() {
     super.initState();
-    _check();
-  }
-
-  Future<void> _check() async {
-    // séries usam id como chave de favorito (não tem streamUrl único na listagem)
-    final key = 'series:${widget.series.id}';
-    final ok = await FavoritesService.isFavorite(key);
-    if (mounted) setState(() => _isFav = ok);
+    FavoritesService.isFavorite('series:${widget.series.id}')
+        .then((v) { if (mounted) setState(() => _isFav = v); });
   }
 
   Future<void> _toggleFav() async {
@@ -288,64 +301,37 @@ class _SeriesTileState extends State<_SeriesTile> {
       onTap: widget.onOpen,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(6),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            s.cover != null
-                ? CachedNetworkImage(
-                    imageUrl: s.cover!,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
-                      color: const Color(0xFF1A1A1A),
-                      child: const Icon(Icons.tv, color: Colors.grey, size: 32),
-                    ),
-                  )
-                : Container(
-                    color: const Color(0xFF1A1A1A),
-                    child: const Icon(Icons.tv, color: Colors.grey, size: 32),
-                  ),
-            Positioned(
-              top: 4,
-              right: 4,
-              child: GestureDetector(
-                onTap: _toggleFav,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Icon(
-                    _isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                    color: _isFav ? Colors.amber : Colors.white,
-                    size: 18,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
+        child: Stack(fit: StackFit.expand, children: [
+          s.cover != null
+              ? CachedNetworkImage(imageUrl: s.cover!, fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => Container(color: const Color(0xFF1A1A1A),
+                      child: const Icon(Icons.tv, color: Colors.grey, size: 32)))
+              : Container(color: const Color(0xFF1A1A1A),
+                  child: const Icon(Icons.tv, color: Colors.grey, size: 32)),
+          Positioned(top: 4, right: 4,
+            child: GestureDetector(
+              onTap: _toggleFav,
               child: Container(
-                padding: const EdgeInsets.all(5),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [Colors.black87, Colors.transparent],
-                  ),
-                ),
-                child: Text(
-                  s.name,
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                child: Icon(_isFav ? Icons.star_rounded : Icons.star_border_rounded,
+                    color: _isFav ? Colors.amber : Colors.white, size: 18),
               ),
             ),
-          ],
-        ),
+          ),
+          Positioned(bottom: 0, left: 0, right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                    colors: [Colors.black87, Colors.transparent]),
+              ),
+              child: Text(s.name,
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+            ),
+          ),
+        ]),
       ),
     );
   }
