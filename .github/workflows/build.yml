@@ -1,10 +1,8 @@
 name: Build APK
-
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,8 +25,34 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload APK
+      - name: Upload APK (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: DreamServer-APK
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Delete existing release (if any)
+        run: |
+          gh release delete latest --yes || true
+          git push origin :refs/tags/latest || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "DreamServer IPTV - Última versão"
+          body: |
+            🚀 Build automático gerado em ${{ github.event.head_commit.timestamp }}
+            
+            📱 **Como instalar:**
+            1. Abra o app **Downloader** no seu Fire TV ou Android TV
+            2. Digite o código curto do AFTVnews
+            3. Instale o APK
+            
+            🔄 Commit: ${{ github.event.head_commit.message }}
+          files: build/app/outputs/flutter-apk/app-release.apk
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
