@@ -26,7 +26,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
 
-  // Replay REMOVIDO
   static const _navItems = [
     _NavItem(Icons.home_rounded,          'Início'),
     _NavItem(Icons.live_tv_rounded,       'TV Ao Vivo'),
@@ -46,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 3: return MoviesScreen(service: widget.service);
       case 4: return SeriesScreen(service: widget.service);
       case 5: return const SportsScreen();
-      case 6: return FavoritesScreen(service: widget.service);
+      case 6: return const FavoritesScreen();
       case 7: return SettingsScreen(service: widget.service);
       default: return const SizedBox.shrink();
     }
@@ -57,21 +56,15 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: kBg,
       body: Row(children: [
+        // Sidebar com foco visível para TV
         Container(
-          width: 58,
+          width: 64,
           color: const Color(0xFF0F0F0F),
           child: Column(children: [
             const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Image.asset(
-                'assets/logo_ds.jpg',
-                width: 36,
-                height: 36,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.play_circle_filled, color: kRed, size: 26),
-              ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: Icon(Icons.play_circle_filled, color: kRed, size: 26),
             ),
             const Divider(color: Colors.white12, height: 16),
             Expanded(
@@ -80,14 +73,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 itemBuilder: (_, i) {
                   final item = _navItems[i];
                   final sel = _tab == i;
-                  return Tooltip(
-                    message: item.label,
-                    preferBelow: false,
-                    child: _NavFocusItem(
-                      selected: sel,
-                      icon: item.icon,
-                      onTap: () => setState(() => _tab = i),
-                    ),
+                  return _SidebarItem(
+                    icon: item.icon,
+                    label: item.label,
+                    selected: sel,
+                    onTap: () => setState(() => _tab = i),
                   );
                 },
               ),
@@ -100,6 +90,76 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// ── Item da sidebar com foco TV ──────────────────────────
+class _SidebarItem extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SidebarItem({
+    required this.icon, required this.label,
+    required this.selected, required this.onTap,
+  });
+
+  @override
+  State<_SidebarItem> createState() => _SidebarItemState();
+}
+
+class _SidebarItemState extends State<_SidebarItem> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = widget.selected || _focused;
+    return Tooltip(
+      message: widget.label,
+      preferBelow: false,
+      child: FocusableActionDetector(
+        onShowFocusHighlight: (v) => setState(() => _focused = v),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) { widget.onTap(); return null; }),
+        },
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: active ? kRed.withOpacity(0.25) : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _focused
+                    ? kRed
+                    : widget.selected
+                        ? kRed.withOpacity(0.5)
+                        : Colors.transparent,
+                width: _focused ? 2 : 1,
+              ),
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(widget.icon,
+                  color: active ? kRed : Colors.grey,
+                  size: 22),
+              // Label aparece quando focado (útil na TV)
+              if (_focused) ...[
+                const SizedBox(height: 4),
+                Text(widget.label,
+                    style: const TextStyle(color: Colors.white, fontSize: 8),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center),
+              ],
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Home Page ────────────────────────────────────────────
 class _HomePage extends StatefulWidget {
   final XtreamService service;
   const _HomePage({required this.service});
@@ -118,7 +178,10 @@ class _HomePageState extends State<_HomePage> {
   void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    final r = await Future.wait([widget.service.getLiveChannels(), widget.service.getMovies()]);
+    final r = await Future.wait([
+      widget.service.getLiveChannels(),
+      widget.service.getMovies(),
+    ]);
     if (mounted) setState(() {
       _live = r[0] as List<Channel>;
       _movies = r[1] as List<Movie>;
@@ -133,14 +196,15 @@ class _HomePageState extends State<_HomePage> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator(color: kRed));
     return CustomScrollView(slivers: [
-      const SliverToBoxAdapter(child: _TopBar()),
+      SliverToBoxAdapter(child: _TopBar()),
       if (_live.isNotEmpty) SliverToBoxAdapter(child: _Banner(
         channels: _live.take(5).toList(), index: _bannerIndex,
-        controller: _pageCtrl, onChanged: (i) => setState(() => _bannerIndex = i),
+        controller: _pageCtrl,
+        onChanged: (i) => setState(() => _bannerIndex = i),
         service: widget.service,
       )),
       if (_live.isNotEmpty) ...[
-        const SliverToBoxAdapter(child: _SectionHeader(title: 'Canais em Destaque')),
+        SliverToBoxAdapter(child: _SectionHeader(title: 'Canais em Destaque')),
         SliverToBoxAdapter(child: SizedBox(height: 100, child: ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -149,7 +213,7 @@ class _HomePageState extends State<_HomePage> {
         ))),
       ],
       if (_movies.isNotEmpty) ...[
-        const SliverToBoxAdapter(child: _SectionHeader(title: 'Filmes Populares')),
+        SliverToBoxAdapter(child: _SectionHeader(title: 'Filmes Populares')),
         SliverToBoxAdapter(child: SizedBox(height: 140, child: ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -163,7 +227,6 @@ class _HomePageState extends State<_HomePage> {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar();
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -177,7 +240,8 @@ class _TopBar extends StatelessWidget {
           const Text('Online', style: TextStyle(color: Colors.green, fontSize: 10)),
         ]),
         const SizedBox(width: 8),
-        const CircleAvatar(backgroundColor: kRed, radius: 14, child: Icon(Icons.person, color: Colors.white, size: 16)),
+        const CircleAvatar(backgroundColor: kRed, radius: 14,
+            child: Icon(Icons.person, color: Colors.white, size: 16)),
       ]),
     );
   }
@@ -189,7 +253,8 @@ class _Banner extends StatelessWidget {
   final PageController controller;
   final ValueChanged<int> onChanged;
   final XtreamService service;
-  const _Banner({required this.channels, required this.index, required this.controller, required this.onChanged, required this.service});
+  const _Banner({required this.channels, required this.index,
+      required this.controller, required this.onChanged, required this.service});
 
   @override
   Widget build(BuildContext context) {
@@ -215,22 +280,21 @@ class _Banner extends StatelessWidget {
                   ))),
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end, children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(color: kRed, borderRadius: BorderRadius.circular(4)),
-                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.circle, color: Colors.white, size: 5),
-                          SizedBox(width: 3),
-                          Text('AO VIVO', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
-                        ]),
+                        child: const Text('AO VIVO',
+                            style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(height: 6),
                       Text(ch.name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
                       ElevatedButton.icon(
                         onPressed: () => Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => PlayerScreen(title: ch.name, url: ch.streamUrl, channelLogo: ch.logo, channelId: ch.id, service: service),
+                          builder: (_) => PlayerScreen(title: ch.name, url: ch.streamUrl,
+                              channelLogo: ch.logo, channelId: ch.id, service: service),
                         )),
                         icon: const Icon(Icons.play_arrow, size: 16),
                         label: const Text('Assistir', style: TextStyle(fontSize: 12)),
@@ -251,7 +315,9 @@ class _Banner extends StatelessWidget {
               child: Row(children: List.generate(channels.length, (i) => Container(
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 width: i == index ? 14 : 5, height: 5,
-                decoration: BoxDecoration(color: i == index ? kRed : Colors.white38, borderRadius: BorderRadius.circular(3)),
+                decoration: BoxDecoration(
+                  color: i == index ? kRed : Colors.white38,
+                  borderRadius: BorderRadius.circular(3)),
               ))),
             ),
           ]),
@@ -265,16 +331,17 @@ class _SectionHeader extends StatelessWidget {
   final String title;
   const _SectionHeader({required this.title});
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
-      child: Row(children: [
-        Container(width: 3, height: 16, decoration: BoxDecoration(color: kRed, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(width: 7),
-        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-      ]),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
+    child: Row(children: [
+      Container(width: 3, height: 16,
+          decoration: BoxDecoration(color: kRed, borderRadius: BorderRadius.circular(2))),
+      const SizedBox(width: 7),
+      Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+      const Spacer(),
+      const Text('Ver todos >', style: TextStyle(color: kRed, fontSize: 11)),
+    ]),
+  );
 }
 
 class _ChannelCard extends StatelessWidget {
@@ -285,7 +352,8 @@ class _ChannelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(
-        builder: (_) => PlayerScreen(title: channel.name, url: channel.streamUrl, channelLogo: channel.logo, channelId: channel.id, service: service),
+        builder: (_) => PlayerScreen(title: channel.name, url: channel.streamUrl,
+            channelLogo: channel.logo, channelId: channel.id, service: service),
       )),
       child: Container(
         width: 120, margin: const EdgeInsets.only(right: 8),
@@ -295,7 +363,8 @@ class _ChannelCard extends StatelessWidget {
           child: Stack(children: [
             channel.logo != null
                 ? CachedNetworkImage(imageUrl: channel.logo!, width: 120, height: 100, fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(color: kSurface, child: const Icon(Icons.live_tv, color: Colors.grey)))
+                    errorWidget: (_, __, ___) => Container(color: kSurface,
+                        child: const Icon(Icons.live_tv, color: Colors.grey)))
                 : Container(color: kSurface, child: const Icon(Icons.live_tv, color: Colors.grey)),
             Positioned(top: 5, left: 5, child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -305,9 +374,12 @@ class _ChannelCard extends StatelessWidget {
             Positioned(bottom: 0, left: 0, right: 0, child: Container(
               padding: const EdgeInsets.all(5),
               decoration: const BoxDecoration(
-                gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black, Colors.transparent]),
+                gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                    colors: [Colors.black, Colors.transparent]),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
               ),
-              child: Text(channel.name, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600),
+              child: Text(channel.name,
+                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
             )),
           ]),
@@ -334,69 +406,21 @@ class _MovieCard extends StatelessWidget {
           child: Stack(fit: StackFit.expand, children: [
             movie.cover != null
                 ? CachedNetworkImage(imageUrl: movie.cover!, fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(color: kSurface, child: const Icon(Icons.movie, color: Colors.grey)))
+                    errorWidget: (_, __, ___) => Container(color: kSurface,
+                        child: const Icon(Icons.movie, color: Colors.grey)))
                 : Container(color: kSurface, child: const Icon(Icons.movie, color: Colors.grey)),
             Positioned(bottom: 0, left: 0, right: 0, child: Container(
               padding: const EdgeInsets.all(5),
               decoration: const BoxDecoration(
-                gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black, Colors.transparent]),
+                gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                    colors: [Colors.black, Colors.transparent]),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
               ),
-              child: Text(movie.name, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600),
+              child: Text(movie.name,
+                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600),
                   maxLines: 2, overflow: TextOverflow.ellipsis),
             )),
           ]),
-        ),
-      ),
-    );
-  }
-}
-
-
-class _NavFocusItem extends StatefulWidget {
-  final bool selected;
-  final IconData icon;
-  final VoidCallback onTap;
-  const _NavFocusItem({required this.selected, required this.icon, required this.onTap});
-  @override
-  State<_NavFocusItem> createState() => _NavFocusItemState();
-}
-
-class _NavFocusItemState extends State<_NavFocusItem> {
-  bool _focused = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return FocusableActionDetector(
-      onShowFocusHighlight: (v) => setState(() => _focused = v),
-      actions: {
-        ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) {
-          widget.onTap();
-          return null;
-        }),
-      },
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: widget.selected
-                ? kRed.withOpacity(0.2)
-                : (_focused ? kRed.withOpacity(0.12) : Colors.transparent),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: _focused
-                  ? kRed
-                  : (widget.selected ? kRed.withOpacity(0.5) : Colors.transparent),
-              width: 2,
-            ),
-          ),
-          child: Icon(
-            widget.icon,
-            color: widget.selected || _focused ? kRed : Colors.grey,
-            size: 22,
-          ),
         ),
       ),
     );

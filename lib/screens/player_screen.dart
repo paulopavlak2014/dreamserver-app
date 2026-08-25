@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/epg.dart';
 import '../services/xtream_service.dart';
 import '../services/player_prefs.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 const _kRed = Color(0xFFE50914);
 
@@ -42,27 +42,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
   StreamSubscription? _playingSub;
   StreamSubscription? _bufferSub;
 
-  // ── Pré-buffer ──────────────────────────────────────────────────────────────
-  bool _isPreBuffering = true;
-  double _bufferProgress = 0.0;
-  String _bufferStatus = 'Conectando ao servidor...';
-  Timer? _bufferFallbackTimer;
-  Timer? _progressTimer;
-
-  static const int _preBufTargetSeconds = 4;
-  static const int _bufferSizeMB = 32;
-
-  // ── Player state ─────────────────────────────────────────────────────────────
   bool _error = false;
   bool _buffering = true;
   bool _controlsVisible = true;
   Timer? _hideTimer;
+  Timer? _retryTimer;
   AspectMode _aspectMode = AspectMode.wide;
 
-  // ── OSD (programação atual) ──────────────────────────────────────────────────
   bool _showOsd = false;
   EpgProgram? _currentProgram;
   Timer? _osdTimer;
+
+  // Pré-buffer
+  static const _kPreBufferSec = 3.0;
+  bool _preBuffering = true;
+  double _bufferProgress = 0;
+  Duration _bufferPos = Duration.zero;
+
+  // Reconexão automática
+  int _retryCount = 0;
+  static const _kMaxRetries = 5;
+  bool _retrying = false;
+  String _retryMsg = '';
 
   @override
   void initState() {
@@ -74,8 +75,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     ]);
 
     _player = Player(
-      configuration: PlayerConfiguration(
-        bufferSize: _bufferSizeMB * 1024 * 1024,
+      configuration: const PlayerConfiguration(
+        bufferSize: 64 * 1024 * 1024,
       ),
     );
     _controller = VideoController(
@@ -85,34 +86,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
       ),
     );
 
-    // Buffer real → atualiza barra de progresso
-    _bufferSub = _player.stream.buffer.listen(_onBufferUpdate);
-
     _bufferingSub = _player.stream.buffering.listen((b) {
-      if (!mounted) return;
-      setState(() => _buffering = b);
-      // Se o player parou de bufferizar e já temos algum dado, libera pré-buffer
-      if (!b && _isPreBuffering && _bufferProgress > 0.3) {
-        _finishPreBuffer();
-      }
+      if (mounted) setState(() => _buffering = b);
     });
 
     _errorSub = _player.stream.error.listen((e) {
       debugPrint('Player error: $e');
-      if (mounted) {
-        setState(() {
-          _error = true;
-          _isPreBuffering = false;
-        });
-      }
+      if (mounted) _handleError();
     });
 
     _playingSub = _player.stream.playing.listen((playing) {
-      if (playing && _isPreBuffering && _bufferProgress > 0.5) {
-        _finishPreBuffer();
-      }
       if (widget.autoPlay && !playing && !_error && !_buffering) {
         _player.play();
+      }
+    });
+
+    _bufferSub = _player.stream.buffer.listen((buf) {
+      if (!mounted || !_preBuffering) return;
+      final secs = buf.inMilliseconds / 1000.0;
+      final progress = (secs / _kPreBufferSec).clamp(0.0, 1.0);
+      setState(() {
+        _bufferPos = buf;
+        _bufferProgress = progress;
+      });
+      if (secs >= _kPreBufferSec) {
+        setState(() => _preBuffering = false);
       }
     });
 
@@ -121,60 +119,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _maybeShowOsd();
   }
 
-  // ── Pré-buffer helpers ───────────────────────────────────────────────────────
-
-  void _startProgressAnimation() {
-    double simulated = 0.0;
-    _progressTimer = Timer.periodic(const Duration(milliseconds: 100), (t) {
-      if (!mounted) { t.cancel(); return; }
-      if (!_isPreBuffering) { t.cancel(); return; }
-      if (simulated < 0.90) {
-        simulated += 0.008;
-        if (_bufferProgress < simulated) {
-          setState(() {
-            _bufferProgress = simulated;
-            _bufferStatus = _statusFromProgress(simulated);
-          });
-        }
-      }
-    });
-  }
-
-  void _onBufferUpdate(Duration buffered) {
-    if (!mounted || !_isPreBuffering) return;
-    final totalSeconds = buffered.inMilliseconds / 1000.0;
-    final real = (totalSeconds / _preBufTargetSeconds).clamp(0.0, 1.0);
-    setState(() {
-      if (real > _bufferProgress) _bufferProgress = real;
-      _bufferStatus = _statusFromProgress(_bufferProgress);
-    });
-    if (_bufferProgress >= 1.0 || totalSeconds >= _preBufTargetSeconds) {
-      _finishPreBuffer();
+  // ── Reconexão automática ────────────────────────────────
+  void _handleError() {
+    if (_retryCount >= _kMaxRetries) {
+      setState(() { _error = true; _retrying = false; _preBuffering = false; });
+      return;
     }
-  }
-
-  void _finishPreBuffer() {
-    if (!mounted || !_isPreBuffering) return;
-    _bufferFallbackTimer?.cancel();
-    _progressTimer?.cancel();
+    _retryCount++;
+    final delay = _retryCount * 3; // 3s, 6s, 9s, 12s, 15s
     setState(() {
-      _bufferProgress = 1.0;
-      _bufferStatus = 'Pronto!';
+      _retrying = true;
+      _error = false;
+      _preBuffering = false;
+      _retryMsg = 'Stream interrompido. Reconectando em ${delay}s... (tentativa $_retryCount/$_kMaxRetries)';
     });
-    Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted) setState(() => _isPreBuffering = false);
+    _retryTimer?.cancel();
+    _retryTimer = Timer(Duration(seconds: delay), () {
+      if (mounted) _open(isRetry: true);
     });
   }
-
-  String _statusFromProgress(double p) {
-    if (p < 0.25) return 'Conectando ao servidor...';
-    if (p < 0.50) return 'Carregando stream...';
-    if (p < 0.75) return 'Preparando vídeo...';
-    if (p < 0.95) return 'Quase lá...';
-    return 'Pronto!';
-  }
-
-  // ── OSD ──────────────────────────────────────────────────────────────────────
 
   void _maybeShowOsd() async {
     if (widget.channelId == null || widget.service == null) return;
@@ -187,8 +150,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
   }
 
-  // ── Abertura do stream ────────────────────────────────────────────────────────
-
   Future<void> _openExternalPreferred(String app) async {
     Uri uri;
     switch (app) {
@@ -196,8 +157,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         uri = Uri.parse('vlc://${widget.url}');
         break;
       case 'mx':
-        uri = Uri.parse(
-            'intent:${widget.url}#Intent;package=com.mxtech.videoplayer.ad;end');
+        uri = Uri.parse('intent:${widget.url}#Intent;package=com.mxtech.videoplayer.ad;end');
         break;
       default:
         uri = Uri.parse(widget.url);
@@ -209,27 +169,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
-  Future<void> _open() async {
+  Future<void> _open({bool isRetry = false}) async {
     setState(() {
       _error = false;
       _buffering = true;
-      _isPreBuffering = true;
-      _bufferProgress = 0.0;
-      _bufferStatus = 'Conectando ao servidor...';
-    });
-
-    // Timer fallback: libera pré-buffer após 10s mesmo que não tenha buffer suficiente
-    _bufferFallbackTimer = Timer(const Duration(seconds: 10), () {
-      if (mounted && _isPreBuffering) {
-        setState(() => _isPreBuffering = false);
+      if (!isRetry) {
+        _preBuffering = true;
+        _bufferProgress = 0;
+        _retryCount = 0;
       }
+      _retrying = false;
     });
-
-    _startProgressAnimation();
-
     try {
       final pref = await PlayerPrefs.get();
-      if (pref != 'internal') {
+      if (pref != 'internal' && !isRetry) {
         await _openExternalPreferred(pref);
       }
       await _player.open(Media(widget.url), play: widget.autoPlay);
@@ -237,16 +190,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (widget.autoPlay) await _player.play();
     } catch (e) {
       debugPrint('Open stream failed: $e');
-      if (mounted) {
-        setState(() {
-          _error = true;
-          _isPreBuffering = false;
-        });
-      }
+      if (mounted) _handleError();
     }
   }
-
-  // ── Controles ─────────────────────────────────────────────────────────────────
 
   void _scheduleHide() {
     _hideTimer?.cancel();
@@ -271,359 +217,301 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _scheduleHide();
   }
 
-  double? get _aspectRatio {
-    switch (_aspectMode) {
-      case AspectMode.wide: return 16 / 9;
-      case AspectMode.fit:  return 4 / 3;
-      case AspectMode.full: return null;
-    }
-  }
+  double? get _aspectRatio => switch (_aspectMode) {
+    AspectMode.wide => 16 / 9,
+    AspectMode.fit  => 4 / 3,
+    AspectMode.full => null,
+  };
 
-  String get _aspectLabel {
-    switch (_aspectMode) {
-      case AspectMode.wide: return '16:9';
-      case AspectMode.fit:  return '4:3';
-      case AspectMode.full: return 'Preencher';
-    }
-  }
+  String get _aspectLabel => switch (_aspectMode) {
+    AspectMode.wide => '16:9',
+    AspectMode.fit  => '4:3',
+    AspectMode.full => 'Preencher',
+  };
 
   @override
   void dispose() {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _hideTimer?.cancel();
     _osdTimer?.cancel();
-    _bufferFallbackTimer?.cancel();
-    _progressTimer?.cancel();
+    _retryTimer?.cancel();
     _bufferingSub?.cancel();
-    _bufferSub?.cancel();
     _errorSub?.cancel();
     _playingSub?.cancel();
+    _bufferSub?.cancel();
     _player.dispose();
     super.dispose();
   }
-
-  // ── Build ─────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
-        onTap: _isPreBuffering ? null : _toggleControls,
+        onTap: _toggleControls,
         child: Stack(children: [
-          // Vídeo (oculto durante pré-buffer)
-          AnimatedOpacity(
-            opacity: _isPreBuffering ? 0.0 : 1.0,
-            duration: const Duration(milliseconds: 500),
-            child: Center(
-              child: _error
-                  ? _ErrorView(onRetry: _open, url: widget.url)
-                  : AspectRatio(
-                      aspectRatio: _aspectRatio ??
-                          MediaQuery.of(context).size.aspectRatio,
-                      child: Video(
-                        controller: _controller,
-                        controls: NoVideoControls,
-                        fit: _aspectMode == AspectMode.full
-                            ? BoxFit.cover
-                            : BoxFit.contain,
-                      ),
+
+          // Vídeo
+          Positioned.fill(
+            child: (_error || _retrying)
+                ? const SizedBox.shrink()
+                : Opacity(
+                    opacity: _preBuffering ? 0.0 : 1.0,
+                    child: Video(
+                      controller: _controller,
+                      controls: NoVideoControls,
+                      fit: _aspectMode == AspectMode.full ? BoxFit.cover : BoxFit.contain,
                     ),
-            ),
+                  ),
           ),
 
-          // Overlay de pré-buffer
-          if (_isPreBuffering) _buildPreBufferOverlay(),
+          // Erro final
+          if (_error)
+            Center(child: _ErrorView(onRetry: () { _retryCount = 0; _open(); }, url: widget.url)),
 
-          // Spinner de buffering (após pré-buffer, enquanto carrega mais dados)
-          if (!_isPreBuffering && _buffering && !_error)
+          // Reconectando
+          if (_retrying)
+            Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const CircularProgressIndicator(color: _kRed),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text(_retryMsg,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () { _retryTimer?.cancel(); _retryCount = 0; _open(); },
+                  child: const Text('Reconectar agora', style: TextStyle(color: _kRed)),
+                ),
+              ]),
+            ),
+
+          // Pré-buffer
+          if (_preBuffering && !_error && !_retrying)
+            Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                if (widget.channelLogo != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Image.network(widget.channelLogo!, width: 64, height: 64,
+                        errorBuilder: (_, __, ___) =>
+                            const Icon(Icons.live_tv, color: Colors.white54, size: 48)),
+                  ),
+                Text(widget.title,
+                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: 220,
+                  child: Column(children: [
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      const Text('Preparando stream...',
+                          style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      Text('${(_bufferProgress * 100).toInt()}%',
+                          style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                    ]),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: _bufferProgress, minHeight: 5,
+                        backgroundColor: Colors.white12,
+                        valueColor: const AlwaysStoppedAnimation(_kRed),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text('Buffer: ${_bufferPos.inSeconds}s / ${_kPreBufferSec.toInt()}s',
+                        style: const TextStyle(color: Colors.white24, fontSize: 10)),
+                  ]),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => setState(() => _preBuffering = false),
+                  child: const Text('Pular e assistir agora',
+                      style: TextStyle(color: Colors.grey, fontSize: 12)),
+                ),
+              ]),
+            ),
+
+          // Buffering após pré-buffer
+          if (_buffering && !_preBuffering && !_error && !_retrying)
             const Center(child: CircularProgressIndicator(color: _kRed)),
 
-          // OSD (programação atual)
-          if (!_isPreBuffering && _showOsd) _buildOsd(),
+          // OSD
+          if (_showOsd && !_preBuffering && !_retrying)
+            Positioned(
+              left: 0, right: 0, bottom: 0,
+              child: GestureDetector(
+                onTap: () => setState(() => _showOsd = false),
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Row(children: [
+                    if (widget.channelLogo != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Image.network(widget.channelLogo!, width: 44, height: 44,
+                            errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.live_tv, color: Colors.white, size: 32)),
+                      ),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min, children: [
+                        Row(children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(3)),
+                            child: const Text('AO VIVO',
+                                style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(widget.title,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                              maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        ]),
+                        const SizedBox(height: 4),
+                        if (_currentProgram != null) ...[
+                          Text(_currentProgram!.title,
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 4),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: LinearProgressIndicator(
+                              value: _currentProgram!.progress, minHeight: 3,
+                              backgroundColor: Colors.white24,
+                              valueColor: const AlwaysStoppedAnimation(_kRed),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(_currentProgram!.timeRange,
+                              style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                        ] else
+                          const Text('Carregando programação...',
+                              style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
 
-          // Controles
-          if (!_isPreBuffering && _controlsVisible) _buildControls(),
+          // Controles topo
+          if (_controlsVisible && !_preBuffering && !_retrying)
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                    colors: [Colors.black87, Colors.transparent],
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Expanded(child: Text(widget.title,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  _TvButton(
+                    onTap: _cycleAspect,
+                    child: Row(children: [
+                      const Icon(Icons.aspect_ratio, color: Colors.white, size: 16),
+                      const SizedBox(width: 4),
+                      Text(_aspectLabel, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                    ]),
+                  ),
+                  const SizedBox(width: 8),
+                ]),
+              ),
+            ),
+
+          // Play/Pause central
+          if (_controlsVisible && !_error && !_preBuffering && !_retrying)
+            Center(
+              child: StreamBuilder<bool>(
+                stream: _player.stream.playing,
+                initialData: true,
+                builder: (_, snap) {
+                  final playing = snap.data ?? true;
+                  return _TvButton(
+                    onTap: () {
+                      playing ? _player.pause() : _player.play();
+                      _scheduleHide();
+                    },
+                    padding: const EdgeInsets.all(14),
+                    borderRadius: 50,
+                    child: Icon(playing ? Icons.pause : Icons.play_arrow,
+                        color: Colors.white, size: 36),
+                  );
+                },
+              ),
+            ),
         ]),
       ),
     );
   }
-
-  // ── Pré-buffer overlay ────────────────────────────────────────────────────────
-
-  Widget _buildPreBufferOverlay() {
-    return Container(
-      color: Colors.black,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 48),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Logo
-              if (widget.channelLogo != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      widget.channelLogo!,
-                      height: 64,
-                      width: 64,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) =>
-                          const Icon(Icons.tv, color: Colors.white54, size: 48),
-                    ),
-                  ),
-                )
-              else
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 24),
-                  child: Icon(Icons.tv, color: Colors.white38, size: 48),
-                ),
-
-              // Nome
-              Text(
-                widget.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-
-              const SizedBox(height: 32),
-
-              // Barra de progresso
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _bufferStatus,
-                        style: const TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                      Text(
-                        '${(_bufferProgress * 100).toInt()}%',
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
-                          fontFeatures: [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: _bufferProgress,
-                      minHeight: 4,
-                      backgroundColor: Colors.white12,
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(_kRed),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text(
-                  'Cancelar',
-                  style: TextStyle(color: Colors.white38, fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── OSD ──────────────────────────────────────────────────────────────────────
-
-  Widget _buildOsd() {
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: GestureDetector(
-        onTap: () => setState(() => _showOsd = false),
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.85),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white24),
-          ),
-          child: Row(children: [
-            if (widget.channelLogo != null)
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Image.network(
-                  widget.channelLogo!,
-                  width: 44,
-                  height: 44,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.live_tv, color: Colors.white, size: 32),
-                ),
-              ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                          color: _kRed, borderRadius: BorderRadius.circular(3)),
-                      child: const Text('AO VIVO',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(widget.title,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                  ]),
-                  const SizedBox(height: 4),
-                  if (_currentProgram != null) ...[
-                    Text(_currentProgram!.title,
-                        style: const TextStyle(color: Colors.white70, fontSize: 12),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
-                      child: LinearProgressIndicator(
-                        value: _currentProgram!.progress,
-                        minHeight: 3,
-                        backgroundColor: Colors.white24,
-                        valueColor: const AlwaysStoppedAnimation(_kRed),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(_currentProgram!.timeRange,
-                        style: const TextStyle(color: Colors.grey, fontSize: 10)),
-                  ] else
-                    const Text('Carregando programação...',
-                        style: TextStyle(color: Colors.grey, fontSize: 11)),
-                ],
-              ),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  // ── Controles ─────────────────────────────────────────────────────────────────
-
-  Widget _buildControls() {
-    return Stack(children: [
-      // Top bar
-      Positioned(
-        top: 0,
-        left: 0,
-        right: 0,
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.black87, Colors.transparent],
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            Expanded(
-              child: Text(widget.title,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
-            ),
-            GestureDetector(
-              onTap: _cycleAspect,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.white12,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.aspect_ratio, color: Colors.white, size: 16),
-                  const SizedBox(width: 4),
-                  Text(_aspectLabel,
-                      style: const TextStyle(color: Colors.white, fontSize: 12)),
-                ]),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ]),
-        ),
-      ),
-
-      // Play/Pause central
-      Center(
-        child: StreamBuilder<bool>(
-          stream: _player.stream.playing,
-          initialData: true,
-          builder: (context, snap) {
-            final playing = snap.data ?? true;
-            return GestureDetector(
-              onTap: () {
-                playing ? _player.pause() : _player.play();
-                _scheduleHide();
-              },
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.black45,
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: Icon(
-                  playing ? Icons.pause : Icons.play_arrow,
-                  color: Colors.white,
-                  size: 36,
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    ]);
-  }
 }
 
-// ── Error view ────────────────────────────────────────────────────────────────
+// ── Botão com foco visível para TV/Firestick ─────────────
+class _TvButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  final EdgeInsets padding;
+  final double borderRadius;
+
+  const _TvButton({
+    required this.child,
+    required this.onTap,
+    this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    this.borderRadius = 6,
+  });
+
+  @override
+  State<_TvButton> createState() => _TvButtonState();
+}
+
+class _TvButtonState extends State<_TvButton> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return FocusableActionDetector(
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) { widget.onTap(); return null; }),
+      },
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: widget.padding,
+          decoration: BoxDecoration(
+            color: _focused ? _kRed.withOpacity(0.8) : Colors.white12,
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+            border: Border.all(
+              color: _focused ? _kRed : Colors.white24,
+              width: _focused ? 2 : 1,
+            ),
+          ),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
 
 class _ErrorView extends StatelessWidget {
   final VoidCallback onRetry;
@@ -632,30 +520,25 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(Icons.error_outline, color: _kRed, size: 40),
-        const SizedBox(height: 8),
-        const Text('Erro ao carregar stream.',
-            style: TextStyle(color: Colors.white)),
-        const SizedBox(height: 4),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Text(url,
-              style: const TextStyle(color: Colors.grey, fontSize: 10),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center),
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      const Icon(Icons.signal_wifi_off_rounded, color: _kRed, size: 48),
+      const SizedBox(height: 12),
+      const Text('Não foi possível carregar o stream',
+          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 4),
+      const Text('Verifique sua conexão ou tente novamente.',
+          style: TextStyle(color: Colors.grey, fontSize: 12)),
+      const SizedBox(height: 16),
+      ElevatedButton.icon(
+        onPressed: onRetry,
+        icon: const Icon(Icons.refresh_rounded),
+        label: const Text('Tentar novamente'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _kRed, foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
-        const SizedBox(height: 12),
-        TextButton.icon(
-          onPressed: onRetry,
-          icon: const Icon(Icons.refresh, color: _kRed),
-          label: const Text('Tentar novamente',
-              style: TextStyle(color: _kRed)),
-        ),
-      ],
-    );
+      ),
+    ]);
   }
 }
