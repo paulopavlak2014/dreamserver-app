@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/xtream_service.dart';
 import '../services/auth_store.dart';
 import 'home_screen.dart';
@@ -42,20 +43,17 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo da marca (sem texto DREAM SERVER)
-                Image.asset(
-                  'assets/logo_ds.jpg',
-                  height: 160,
-                  fit: BoxFit.contain,
-                ),
+                Image.asset('assets/logo_ds.jpg', height: 160, fit: BoxFit.contain),
                 const SizedBox(height: 40),
-                _Field(ctrl: _userCtrl, label: 'Usuário', icon: Icons.person),
+                _TvField(ctrl: _userCtrl, label: 'Usuário', icon: Icons.person,
+                    onSubmit: () => FocusScope.of(context).nextFocus()),
                 const SizedBox(height: 16),
-                _Field(
+                _TvField(
                   ctrl: _passCtrl,
                   label: 'Senha',
                   icon: Icons.lock,
                   obscure: _obscure,
+                  onSubmit: _loading ? null : _login,
                   suffix: IconButton(
                     icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: Colors.grey),
                     onPressed: () => setState(() => _obscure = !_obscure),
@@ -66,20 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(_error!, style: const TextStyle(color: Color(0xFFE50914))),
                 ],
                 const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _login,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE50914),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                    ),
-                    child: _loading
-                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('Entrar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                  ),
-                ),
+                _LoginButton(loading: _loading, onTap: _loading ? null : _login),
               ],
             ),
           ),
@@ -89,14 +74,78 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class _Field extends StatelessWidget {
+// ── Botão Entrar com foco TV ─────────────────────────────────────────────────
+class _LoginButton extends StatefulWidget {
+  final bool loading;
+  final VoidCallback? onTap;
+  const _LoginButton({required this.loading, this.onTap});
+
+  @override
+  State<_LoginButton> createState() => _LoginButtonState();
+}
+
+class _LoginButtonState extends State<_LoginButton> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+             event.logicalKey == LogicalKeyboardKey.enter)) {
+          widget.onTap?.call();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: double.infinity,
+          height: 50,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE50914),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: _focused ? Colors.white : Colors.transparent,
+              width: 3,
+            ),
+            boxShadow: _focused
+                ? [const BoxShadow(color: Colors.white24, blurRadius: 8, spreadRadius: 2)]
+                : [],
+          ),
+          alignment: Alignment.center,
+          child: widget.loading
+              ? const SizedBox(width: 22, height: 22,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : const Text('Entrar',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Campo de texto com foco TV ───────────────────────────────────────────────
+class _TvField extends StatelessWidget {
   final TextEditingController ctrl;
   final String label;
   final IconData icon;
   final bool obscure;
   final Widget? suffix;
+  final VoidCallback? onSubmit;
 
-  const _Field({required this.ctrl, required this.label, required this.icon, this.obscure = false, this.suffix});
+  const _TvField({
+    required this.ctrl,
+    required this.label,
+    required this.icon,
+    this.obscure = false,
+    this.suffix,
+    this.onSubmit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -104,6 +153,7 @@ class _Field extends StatelessWidget {
       controller: ctrl,
       obscureText: obscure,
       style: const TextStyle(color: Colors.white),
+      onSubmitted: (_) => onSubmit?.call(),
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.grey),
@@ -114,7 +164,7 @@ class _Field extends StatelessWidget {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide.none),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: Color(0xFFE50914)),
+          borderSide: const BorderSide(color: Color(0xFFE50914), width: 2),
         ),
       ),
     );
