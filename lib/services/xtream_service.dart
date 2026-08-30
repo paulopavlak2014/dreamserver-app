@@ -14,8 +14,25 @@ class XtreamService {
 
   String get _api => '$baseUrl/player_api.php?username=$username&password=$password';
 
-  // ── Cache local ──────────────────────────────────────────
-  // Validade do cache: 30 minutos
+  // ── Cache em MEMÓRIA (instantâneo ao trocar de aba) ──────────────────────
+  List<Channel>? _memChannels;
+  List<Movie>?   _memMovies;
+  List<Series>?  _memSeries;
+  List<Category>? _memLiveCats;
+  List<Category>? _memVodCats;
+  List<Category>? _memSeriesCats;
+
+  /// Limpa cache de memória e disco (chamado pelo botão Atualizar e Limpar cache)
+  void clearMemoryCache() {
+    _memChannels  = null;
+    _memMovies    = null;
+    _memSeries    = null;
+    _memLiveCats  = null;
+    _memVodCats   = null;
+    _memSeriesCats = null;
+  }
+
+  // ── Cache em disco (30 min) ───────────────────────────────────────────────
   static const _cacheTtl = Duration(minutes: 30);
 
   Future<String?> _getCached(String key) async {
@@ -38,6 +55,7 @@ class XtreamService {
   }
 
   Future<void> clearCache() async {
+    clearMemoryCache();
     try {
       final prefs = await SharedPreferences.getInstance();
       final keys = prefs.getKeys().where((k) =>
@@ -46,7 +64,7 @@ class XtreamService {
     } catch (_) {}
   }
 
-  // ── Auth ────────────────────────────────────────────────
+  // ── Auth ──────────────────────────────────────────────────────────────────
   Future<bool> authenticate() async {
     try {
       final r = await http.get(Uri.parse(_api)).timeout(const Duration(seconds: 15));
@@ -59,19 +77,25 @@ class XtreamService {
     } catch (_) { return false; }
   }
 
-  // ── Canais ao vivo ───────────────────────────────────────
+  // ── Canais ao vivo ────────────────────────────────────────────────────────
   Future<List<Channel>> getLiveChannels() async {
+    // 1º: memória
+    if (_memChannels != null) return _memChannels!;
+
+    // 2º: disco
     const cacheKey = 'cache_live';
     final cached = await _getCached(cacheKey);
     if (cached != null) {
       try {
         final decoded = jsonDecode(cached) as List;
-        return decoded.whereType<Map>()
+        _memChannels = decoded.whereType<Map>()
             .map((j) => Channel.fromJson(Map<String, dynamic>.from(j), baseUrl, username, password))
             .toList();
+        return _memChannels!;
       } catch (_) {}
     }
 
+    // 3º: servidor
     try {
       final r = await http.get(Uri.parse('$_api&action=get_live_streams'))
           .timeout(const Duration(seconds: 45));
@@ -79,31 +103,44 @@ class XtreamService {
         final decoded = jsonDecode(r.body);
         if (decoded is! List) return [];
         await _setCache(cacheKey, r.body);
-        return decoded.whereType<Map>()
+        _memChannels = decoded.whereType<Map>()
             .map((j) => Channel.fromJson(Map<String, dynamic>.from(j), baseUrl, username, password))
             .toList();
+        return _memChannels!;
       }
     } catch (_) {}
     return [];
   }
 
-  // ── Categorias ───────────────────────────────────────────
-  Future<List<Category>> getLiveCategories() => _getCategories('get_live_categories');
-  Future<List<Category>> getVodCategories() => _getCategories('get_vod_categories');
-  Future<List<Category>> getSeriesCategories() => _getCategories('get_series_categories');
+  // ── Categorias ────────────────────────────────────────────────────────────
+  Future<List<Category>> getLiveCategories()   => _getCategories('get_live_categories',   () => _memLiveCats,   (v) => _memLiveCats = v);
+  Future<List<Category>> getVodCategories()    => _getCategories('get_vod_categories',    () => _memVodCats,    (v) => _memVodCats = v);
+  Future<List<Category>> getSeriesCategories() => _getCategories('get_series_categories', () => _memSeriesCats, (v) => _memSeriesCats = v);
 
-  Future<List<Category>> _getCategories(String action) async {
+  Future<List<Category>> _getCategories(
+    String action,
+    List<Category>? Function() getCache,
+    void Function(List<Category>) setCache,
+  ) async {
+    // 1º: memória
+    final mem = getCache();
+    if (mem != null) return mem;
+
+    // 2º: disco
     final cacheKey = 'cache_$action';
     final cached = await _getCached(cacheKey);
     if (cached != null) {
       try {
         final decoded = jsonDecode(cached) as List;
-        return decoded.whereType<Map>()
+        final list = decoded.whereType<Map>()
             .map((j) => Category.fromJson(Map<String, dynamic>.from(j)))
             .toList();
+        setCache(list);
+        return list;
       } catch (_) {}
     }
 
+    // 3º: servidor
     try {
       final r = await http.get(Uri.parse('$_api&action=$action'))
           .timeout(const Duration(seconds: 25));
@@ -111,16 +148,22 @@ class XtreamService {
         final decoded = jsonDecode(r.body);
         if (decoded is! List) return [];
         await _setCache(cacheKey, r.body);
-        return decoded.whereType<Map>()
+        final list = decoded.whereType<Map>()
             .map((j) => Category.fromJson(Map<String, dynamic>.from(j)))
             .toList();
+        setCache(list);
+        return list;
       }
     } catch (_) {}
     return [];
   }
 
-  // ── Filmes — 1 request só, paralelo com categorias ───────
+  // ── Filmes ────────────────────────────────────────────────────────────────
   Future<List<Movie>> getMovies() async {
+    // 1º: memória
+    if (_memMovies != null) return _memMovies!;
+
+    // 2º: disco
     const cacheKey = 'cache_movies';
     final cached = await _getCached(cacheKey);
     if (cached != null) {
@@ -133,28 +176,29 @@ class XtreamService {
             catch (_) {}
           }
         }
-        if (list.isNotEmpty) return list;
+        if (list.isNotEmpty) {
+          _memMovies = list;
+          return _memMovies!;
+        }
       } catch (_) {}
     }
 
-    // Faz lista geral + categorias em paralelo
+    // 3º: servidor
     final futures = await Future.wait([
-      _getMoviesRaw(null),           // lista geral primeiro
+      _getMoviesRaw(null),
       getVodCategories(),
     ]);
 
     final general = futures[0] as List<Movie>;
     final cats    = futures[1] as List<Category>;
 
-    // Se a lista geral já tem tudo, usa ela
     if (general.isNotEmpty) {
+      _memMovies = general;
       await _cacheMovies(general);
-      // Ainda busca por categoria em paralelo para complementar
       _complementMoviesInBackground(general, cats);
-      return general;
+      return _memMovies!;
     }
 
-    // Se lista geral veio vazia, busca por categoria em paralelo (lotes de 5)
     final seen = <String>{};
     final result = <Movie>[];
     const batchSize = 5;
@@ -167,12 +211,14 @@ class XtreamService {
         }
       }
     }
-    if (result.isNotEmpty) await _cacheMovies(result);
+    if (result.isNotEmpty) {
+      _memMovies = result;
+      await _cacheMovies(result);
+    }
     return result;
   }
 
   void _complementMoviesInBackground(List<Movie> existing, List<Category> cats) async {
-    // Roda em background sem bloquear a UI
     final seen = existing.map((m) => m.id).toSet();
     final extra = <Movie>[];
     const batchSize = 5;
@@ -186,13 +232,13 @@ class XtreamService {
       }
     }
     if (extra.isNotEmpty) {
-      await _cacheMovies([...existing, ...extra]);
+      _memMovies = [...existing, ...extra];
+      await _cacheMovies(_memMovies!);
     }
   }
 
   Future<void> _cacheMovies(List<Movie> list) async {
     try {
-      // Salva só os campos essenciais para não estourar o limite do SharedPreferences
       final slim = list.map((m) => {
         'stream_id': m.id, 'name': m.name,
         'stream_url': m.streamUrl, 'stream_icon': m.cover ?? '',
@@ -221,8 +267,12 @@ class XtreamService {
     } catch (_) { return []; }
   }
 
-  // ── Séries — mesmo padrão paralelo ───────────────────────
+  // ── Séries ────────────────────────────────────────────────────────────────
   Future<List<Series>> getSeries() async {
+    // 1º: memória
+    if (_memSeries != null) return _memSeries!;
+
+    // 2º: disco
     const cacheKey = 'cache_series';
     final cached = await _getCached(cacheKey);
     if (cached != null) {
@@ -237,10 +287,14 @@ class XtreamService {
             } catch (_) {}
           }
         }
-        if (list.isNotEmpty) return list;
+        if (list.isNotEmpty) {
+          _memSeries = list;
+          return _memSeries!;
+        }
       } catch (_) {}
     }
 
+    // 3º: servidor
     final futures = await Future.wait([
       _getSeriesRaw(null),
       getSeriesCategories(),
@@ -250,9 +304,10 @@ class XtreamService {
     final cats    = futures[1] as List<Category>;
 
     if (general.isNotEmpty) {
+      _memSeries = general;
       await _cacheSeries(general);
       _complementSeriesInBackground(general, cats);
-      return general;
+      return _memSeries!;
     }
 
     final seen = <String>{};
@@ -267,7 +322,10 @@ class XtreamService {
         }
       }
     }
-    if (result.isNotEmpty) await _cacheSeries(result);
+    if (result.isNotEmpty) {
+      _memSeries = result;
+      await _cacheSeries(result);
+    }
     return result;
   }
 
@@ -284,7 +342,10 @@ class XtreamService {
         }
       }
     }
-    if (extra.isNotEmpty) await _cacheSeries([...existing, ...extra]);
+    if (extra.isNotEmpty) {
+      _memSeries = [...existing, ...extra];
+      await _cacheSeries(_memSeries!);
+    }
   }
 
   Future<void> _cacheSeries(List<Series> list) async {
@@ -318,7 +379,7 @@ class XtreamService {
     } catch (_) { return []; }
   }
 
-  // ── EPG ─────────────────────────────────────────────────
+  // ── Series info / EPG ─────────────────────────────────────────────────────
   Future<Map<String, dynamic>?> getSeriesInfo(String seriesId) async {
     try {
       final r = await http
