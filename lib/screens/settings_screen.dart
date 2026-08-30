@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_store.dart';
 import '../services/xtream_service.dart';
@@ -19,7 +20,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _player = 'internal';
   bool _refreshing = false;
 
-  // M3U
   final _m3uCtrl = TextEditingController();
   bool _savingM3u = false;
 
@@ -82,17 +82,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-              'Conteúdos atualizados. Volte nas abas para ver a lista nova.'),
+          content: Text('Conteúdos atualizados. Volte nas abas para ver a lista nova.'),
           backgroundColor: Color(0xFF1A1A1A),
         ),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Falha ao atualizar'),
-            backgroundColor: Colors.red),
+        const SnackBar(content: Text('Falha ao atualizar'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _refreshing = false);
@@ -104,22 +101,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title:
-            const Text('Sair da conta', style: TextStyle(color: Colors.white)),
-        content: const Text('Tem certeza que deseja sair?',
-            style: TextStyle(color: Colors.grey)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Sair da conta', style: TextStyle(color: Colors.white)),
+        content: const Text('Tem certeza que deseja sair?', style: TextStyle(color: Colors.grey)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar',
-                  style: TextStyle(color: Colors.grey))),
+              child: const Text('Cancelar', style: TextStyle(color: Colors.grey))),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Sair',
-                  style: TextStyle(
-                      color: _kRed, fontWeight: FontWeight.bold))),
+                  style: TextStyle(color: _kRed, fontWeight: FontWeight.bold))),
         ],
       ),
     );
@@ -141,9 +133,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text('Cache limpo'),
-          backgroundColor: Color(0xFF1A1A1A)),
+      const SnackBar(content: Text('Cache limpo'), backgroundColor: Color(0xFF1A1A1A)),
     );
   }
 
@@ -156,29 +146,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Configurações',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold)),
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 24),
 
-            // ── Conta ──────────────────────────────────────────────────────
             _SectionCard(children: [
-              _InfoRow(
-                  icon: Icons.person,
-                  label: 'Usuário',
-                  value: widget.service.username),
+              _InfoRow(icon: Icons.person, label: 'Usuário', value: widget.service.username),
               const Divider(color: Color(0xFF2A2A2A), height: 24),
-              _InfoRow(
-                  icon: Icons.dns_rounded,
-                  label: 'Servidor',
-                  value: XtreamService.baseUrl),
+              _InfoRow(icon: Icons.dns_rounded, label: 'Servidor', value: XtreamService.baseUrl),
             ]),
             const SizedBox(height: 16),
 
-            // ── Lista M3U adicional ────────────────────────────────────────
-            const Text('Lista M3U adicional',
-                style: TextStyle(color: Colors.grey, fontSize: 13)),
+            const Text('Lista M3U adicional', style: TextStyle(color: Colors.grey, fontSize: 13)),
             const SizedBox(height: 8),
             _SectionCard(children: [
               const Text(
@@ -206,14 +184,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     borderRadius: BorderRadius.circular(8),
                     borderSide: const BorderSide(color: _kRed),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
-                  prefixIcon: const Icon(Icons.list_alt_rounded,
-                      color: Colors.white38, size: 18),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  prefixIcon: const Icon(Icons.list_alt_rounded, color: Colors.white38, size: 18),
                   suffixIcon: _m3uCtrl.text.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear,
-                              color: Colors.white38, size: 18),
+                          icon: const Icon(Icons.clear, color: Colors.white38, size: 18),
                           onPressed: () {
                             _m3uCtrl.clear();
                             setState(() {});
@@ -228,37 +203,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _savingM3u ? null : _saveM3u,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kRed,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
+                child: _TvFocusButton(
+                  onTap: _savingM3u ? null : _saveM3u,
                   child: _savingM3u
                       ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
+                          height: 16, width: 16,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : const Text('Salvar lista M3U',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.bold)),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ),
             ]),
             const SizedBox(height: 16),
 
-            // ── Player ─────────────────────────────────────────────────────
-            const Text('Player',
-                style: TextStyle(color: Colors.grey, fontSize: 13)),
+            const Text('Player', style: TextStyle(color: Colors.grey, fontSize: 13)),
             const SizedBox(height: 8),
             _SectionCard(children: [
               for (var i = 0; i < PlayerPrefs.options.length; i++) ...[
-                if (i > 0)
-                  const Divider(color: Color(0xFF2A2A2A), height: 16),
+                if (i > 0) const Divider(color: Color(0xFF2A2A2A), height: 16),
                 _PlayerOption(
                   label: PlayerPrefs.options[i].$2,
                   selected: _player == PlayerPrefs.options[i].$1,
@@ -268,12 +230,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ]),
             const SizedBox(height: 16),
 
-            // ── Ações ──────────────────────────────────────────────────────
             _SectionCard(children: [
               _ActionRow(
                 icon: Icons.sync_rounded,
-                label:
-                    _refreshing ? 'Atualizando...' : 'Atualizar conteúdos',
+                label: _refreshing ? 'Atualizando...' : 'Atualizar conteúdos',
                 color: Colors.white,
                 onTap: _refreshing ? null : _refreshContent,
               ),
@@ -294,8 +254,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ]),
             const SizedBox(height: 24),
             const Center(
-              child: Text('DreamServer IPTV',
-                  style: TextStyle(color: Colors.grey, fontSize: 12)),
+              child: Text('DreamServer IPTV', style: TextStyle(color: Colors.grey, fontSize: 12)),
             ),
           ],
         ),
@@ -304,32 +263,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-// ── Widgets auxiliares ────────────────────────────────────────────────────────
+// ── Botão com foco para TV ──────────────────────────────────────────────────
 
-class _PlayerOption extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _PlayerOption(
-      {required this.label, required this.selected, required this.onTap});
+class _TvFocusButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  const _TvFocusButton({required this.child, this.onTap});
+
+  @override
+  State<_TvFocusButton> createState() => _TvFocusButtonState();
+}
+
+class _TvFocusButtonState extends State<_TvFocusButton> {
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Row(children: [
-        Icon(
-            selected
-                ? Icons.radio_button_checked
-                : Icons.radio_button_off,
-            color: selected ? _kRed : Colors.grey,
-            size: 20),
-        const SizedBox(width: 12),
-        Text(label,
-            style: TextStyle(
-                color: selected ? Colors.white : Colors.grey,
-                fontSize: 14)),
-      ]),
+    return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+             event.logicalKey == LogicalKeyboardKey.enter)) {
+          widget.onTap?.call();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: _focused ? Colors.white24 : _kRed,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _focused ? Colors.white : Colors.transparent, width: 2),
+          ),
+          alignment: Alignment.center,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Widgets auxiliares ──────────────────────────────────────────────────────
+
+class _PlayerOption extends StatefulWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _PlayerOption({required this.label, required this.selected, required this.onTap});
+
+  @override
+  State<_PlayerOption> createState() => _PlayerOptionState();
+}
+
+class _PlayerOptionState extends State<_PlayerOption> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+             event.logicalKey == LogicalKeyboardKey.enter)) {
+          widget.onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: InkWell(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          decoration: BoxDecoration(
+            color: _focused ? Colors.white12 : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _focused ? Colors.white : Colors.transparent, width: 2),
+          ),
+          child: Row(children: [
+            Icon(
+                widget.selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: widget.selected ? _kRed : Colors.grey,
+                size: 20),
+            const SizedBox(width: 12),
+            Text(widget.label,
+                style: TextStyle(
+                    color: widget.selected ? Colors.white : Colors.grey, fontSize: 14)),
+          ]),
+        ),
+      ),
     );
   }
 }
@@ -347,8 +375,7 @@ class _SectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFF2A2A2A)),
       ),
-      child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, children: children),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
   }
 }
@@ -357,8 +384,7 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _InfoRow(
-      {required this.icon, required this.label, required this.value});
+  const _InfoRow({required this.icon, required this.label, required this.value});
   @override
   Widget build(BuildContext context) {
     return Row(children: [
@@ -375,31 +401,50 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class _ActionRow extends StatelessWidget {
+class _ActionRow extends StatefulWidget {
   final IconData icon;
   final String label;
   final Color color;
   final VoidCallback? onTap;
-  const _ActionRow(
-      {required this.icon,
-      required this.label,
-      required this.color,
-      this.onTap});
+  const _ActionRow({required this.icon, required this.label, required this.color, this.onTap});
+
+  @override
+  State<_ActionRow> createState() => _ActionRowState();
+}
+
+class _ActionRowState extends State<_ActionRow> {
+  bool _focused = false;
+
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 12),
-          Text(label,
-              style: TextStyle(
-                  color: color,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600)),
-        ]),
+    return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+             event.logicalKey == LogicalKeyboardKey.enter)) {
+          widget.onTap?.call();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: InkWell(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: _focused ? Colors.white12 : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _focused ? Colors.white : Colors.transparent, width: 2),
+          ),
+          child: Row(children: [
+            Icon(widget.icon, color: widget.color, size: 20),
+            const SizedBox(width: 12),
+            Text(widget.label,
+                style: TextStyle(color: widget.color, fontSize: 15, fontWeight: FontWeight.w600)),
+          ]),
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/xtream_service.dart';
 import '../services/favorites_service.dart';
@@ -18,7 +19,7 @@ class MoviesScreen extends StatefulWidget {
 class _MoviesScreenState extends State<MoviesScreen> {
   List<Movie> _all = [];
   List<Category> _categories = [];
-  String _selectedCat = '';   // '' = Todos
+  String _selectedCat = '';
   String _search = '';
   bool _loading = true;
   final _searchCtrl = TextEditingController();
@@ -70,7 +71,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
       children: [
         const SizedBox(height: 16),
 
-        // Título + contador
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Row(children: [
@@ -90,7 +90,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
           ]),
         ),
 
-        // Busca
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: TextField(
@@ -109,7 +108,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
           ),
         ),
 
-        // Chips de categoria
         if (_categories.isNotEmpty)
           SizedBox(
             height: 38,
@@ -125,16 +123,12 @@ class _MoviesScreenState extends State<MoviesScreen> {
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
                     label: Text(isAll ? 'Todos' : cat!.name,
-                        style: TextStyle(
-                            color: active ? Colors.white : Colors.grey,
-                            fontSize: 11)),
+                        style: TextStyle(color: active ? Colors.white : Colors.grey, fontSize: 11)),
                     selected: active,
-                    onSelected: (_) => setState(() =>
-                        _selectedCat = isAll ? '' : cat!.id),
+                    onSelected: (_) => setState(() => _selectedCat = isAll ? '' : cat!.id),
                     selectedColor: _kRed,
                     backgroundColor: const Color(0xFF1E1E1E),
-                    side: BorderSide(
-                        color: active ? _kRed : Colors.white12),
+                    side: BorderSide(color: active ? _kRed : Colors.white12),
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     visualDensity: VisualDensity.compact,
                   ),
@@ -145,7 +139,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
         const SizedBox(height: 8),
 
-        // Grid
         Expanded(
           child: _loading
               ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -156,8 +149,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                   Text('Pode levar alguns instantes', style: TextStyle(color: Colors.white24, fontSize: 11)),
                 ]))
               : _filtered.isEmpty
-                  ? const Center(child: Text('Nenhum filme encontrado',
-                      style: TextStyle(color: Colors.grey)))
+                  ? const Center(child: Text('Nenhum filme encontrado', style: TextStyle(color: Colors.grey)))
                   : GridView.builder(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -184,6 +176,7 @@ class _MovieTile extends StatefulWidget {
 
 class _MovieTileState extends State<_MovieTile> {
   bool _isFav = false;
+  bool _focused = false;
 
   @override
   void initState() {
@@ -203,45 +196,77 @@ class _MovieTileState extends State<_MovieTile> {
     if (mounted) setState(() => _isFav = !_isFav);
   }
 
+  void _openPlayer(BuildContext context) {
+    final m = widget.movie;
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final m = widget.movie;
-    return GestureDetector(
-      onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl))),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Stack(fit: StackFit.expand, children: [
-          m.cover != null
-              ? CachedNetworkImage(imageUrl: m.cover!, fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) => Container(color: const Color(0xFF1A1A1A),
-                      child: const Icon(Icons.movie, color: Colors.grey, size: 32)))
-              : Container(color: const Color(0xFF1A1A1A),
-                  child: const Icon(Icons.movie, color: Colors.grey, size: 32)),
-          Positioned(top: 4, right: 4,
-            child: GestureDetector(
-              onTap: _toggleFav,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-                child: Icon(_isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                    color: _isFav ? Colors.amber : Colors.white, size: 18),
-              ),
+    return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+             event.logicalKey == LogicalKeyboardKey.enter)) {
+          _openPlayer(context);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTap: () => _openPlayer(context),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: _focused ? Colors.white : Colors.transparent,
+              width: 3,
             ),
           ),
-          Positioned(bottom: 0, left: 0, right: 0,
-            child: Container(
-              padding: const EdgeInsets.all(5),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
-                    colors: [Colors.black87, Colors.transparent]),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Stack(fit: StackFit.expand, children: [
+              m.cover != null
+                  ? CachedNetworkImage(imageUrl: m.cover!, fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Container(color: const Color(0xFF1A1A1A),
+                          child: const Icon(Icons.movie, color: Colors.grey, size: 32)))
+                  : Container(color: const Color(0xFF1A1A1A),
+                      child: const Icon(Icons.movie, color: Colors.grey, size: 32)),
+
+              // Overlay de foco
+              if (_focused)
+                Container(color: Colors.white10),
+
+              Positioned(top: 4, right: 4,
+                child: GestureDetector(
+                  onTap: _toggleFav,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                    child: Icon(_isFav ? Icons.star_rounded : Icons.star_border_rounded,
+                        color: _isFav ? Colors.amber : Colors.white, size: 18),
+                  ),
+                ),
               ),
-              child: Text(m.name,
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                  maxLines: 2, overflow: TextOverflow.ellipsis),
-            ),
+              Positioned(bottom: 0, left: 0, right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                        colors: [Colors.black87, Colors.transparent]),
+                  ),
+                  child: Text(m.name,
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                ),
+              ),
+            ]),
           ),
-        ]),
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/xtream_service.dart';
 import '../services/favorites_service.dart';
@@ -123,11 +124,9 @@ class _SeriesScreenState extends State<SeriesScreen> {
                         'Episódio ${ep['episode_num'] ?? (i + 1)}';
                     final id = ep['id']?.toString() ?? '';
                     final ext = ep['container_extension']?.toString() ?? 'mp4';
-                    return ListTile(
-                      title: Text(title, style: const TextStyle(color: Colors.white)),
-                      subtitle: Text('S${ep['season'] ?? '?'} E${ep['episode_num'] ?? '?'}',
-                          style: const TextStyle(color: Colors.grey)),
-                      trailing: const Icon(Icons.play_arrow, color: _kRed),
+                    return _EpisodeTile(
+                      title: title,
+                      subtitle: 'S${ep['season'] ?? '?'} E${ep['episode_num'] ?? '?'}',
                       onTap: () {
                         Navigator.pop(ctx);
                         final url = widget.service.seriesEpisodeUrl(s.id, id, ext);
@@ -158,7 +157,6 @@ class _SeriesScreenState extends State<SeriesScreen> {
       children: [
         const SizedBox(height: 16),
 
-        // Título + contador
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Row(children: [
@@ -178,7 +176,6 @@ class _SeriesScreenState extends State<SeriesScreen> {
           ]),
         ),
 
-        // Busca
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: TextField(
@@ -197,7 +194,6 @@ class _SeriesScreenState extends State<SeriesScreen> {
           ),
         ),
 
-        // Chips de categoria
         if (_categories.isNotEmpty)
           SizedBox(
             height: 38,
@@ -213,12 +209,9 @@ class _SeriesScreenState extends State<SeriesScreen> {
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
                     label: Text(isAll ? 'Todos' : cat!.name,
-                        style: TextStyle(
-                            color: active ? Colors.white : Colors.grey,
-                            fontSize: 11)),
+                        style: TextStyle(color: active ? Colors.white : Colors.grey, fontSize: 11)),
                     selected: active,
-                    onSelected: (_) => setState(() =>
-                        _selectedCat = isAll ? '' : cat!.id),
+                    onSelected: (_) => setState(() => _selectedCat = isAll ? '' : cat!.id),
                     selectedColor: _kRed,
                     backgroundColor: const Color(0xFF1E1E1E),
                     side: BorderSide(color: active ? _kRed : Colors.white12),
@@ -232,7 +225,6 @@ class _SeriesScreenState extends State<SeriesScreen> {
 
         const SizedBox(height: 8),
 
-        // Grid
         Expanded(
           child: _loading
               ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -243,8 +235,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
                   Text('Pode levar alguns instantes', style: TextStyle(color: Colors.white24, fontSize: 11)),
                 ]))
               : _filtered.isEmpty
-                  ? const Center(child: Text('Nenhuma série encontrada',
-                      style: TextStyle(color: Colors.grey)))
+                  ? const Center(child: Text('Nenhuma série encontrada', style: TextStyle(color: Colors.grey)))
                   : GridView.builder(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -264,6 +255,54 @@ class _SeriesScreenState extends State<SeriesScreen> {
   }
 }
 
+// ── Episode tile com foco TV ────────────────────────────────────────────────
+
+class _EpisodeTile extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _EpisodeTile({required this.title, required this.subtitle, required this.onTap});
+
+  @override
+  State<_EpisodeTile> createState() => _EpisodeTileState();
+}
+
+class _EpisodeTileState extends State<_EpisodeTile> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+             event.logicalKey == LogicalKeyboardKey.enter)) {
+          widget.onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: _focused ? Colors.white12 : Colors.transparent,
+          border: Border.all(color: _focused ? Colors.white : Colors.transparent, width: 2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ListTile(
+          title: Text(widget.title, style: const TextStyle(color: Colors.white)),
+          subtitle: Text(widget.subtitle, style: const TextStyle(color: Colors.grey)),
+          trailing: const Icon(Icons.play_arrow, color: _kRed),
+          onTap: widget.onTap,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Series tile com foco TV ─────────────────────────────────────────────────
+
 class _SeriesTile extends StatefulWidget {
   final Series series;
   final VoidCallback onOpen;
@@ -274,6 +313,7 @@ class _SeriesTile extends StatefulWidget {
 
 class _SeriesTileState extends State<_SeriesTile> {
   bool _isFav = false;
+  bool _focused = false;
 
   @override
   void initState() {
@@ -297,41 +337,67 @@ class _SeriesTileState extends State<_SeriesTile> {
   @override
   Widget build(BuildContext context) {
     final s = widget.series;
-    return GestureDetector(
-      onTap: widget.onOpen,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Stack(fit: StackFit.expand, children: [
-          s.cover != null
-              ? CachedNetworkImage(imageUrl: s.cover!, fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) => Container(color: const Color(0xFF1A1A1A),
-                      child: const Icon(Icons.tv, color: Colors.grey, size: 32)))
-              : Container(color: const Color(0xFF1A1A1A),
-                  child: const Icon(Icons.tv, color: Colors.grey, size: 32)),
-          Positioned(top: 4, right: 4,
-            child: GestureDetector(
-              onTap: _toggleFav,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-                child: Icon(_isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                    color: _isFav ? Colors.amber : Colors.white, size: 18),
-              ),
+    return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+             event.logicalKey == LogicalKeyboardKey.enter)) {
+          widget.onOpen();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTap: widget.onOpen,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: _focused ? Colors.white : Colors.transparent,
+              width: 3,
             ),
           ),
-          Positioned(bottom: 0, left: 0, right: 0,
-            child: Container(
-              padding: const EdgeInsets.all(5),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
-                    colors: [Colors.black87, Colors.transparent]),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Stack(fit: StackFit.expand, children: [
+              s.cover != null
+                  ? CachedNetworkImage(imageUrl: s.cover!, fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Container(color: const Color(0xFF1A1A1A),
+                          child: const Icon(Icons.tv, color: Colors.grey, size: 32)))
+                  : Container(color: const Color(0xFF1A1A1A),
+                      child: const Icon(Icons.tv, color: Colors.grey, size: 32)),
+
+              if (_focused)
+                Container(color: Colors.white10),
+
+              Positioned(top: 4, right: 4,
+                child: GestureDetector(
+                  onTap: _toggleFav,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                    child: Icon(_isFav ? Icons.star_rounded : Icons.star_border_rounded,
+                        color: _isFav ? Colors.amber : Colors.white, size: 18),
+                  ),
+                ),
               ),
-              child: Text(s.name,
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                  maxLines: 2, overflow: TextOverflow.ellipsis),
-            ),
+              Positioned(bottom: 0, left: 0, right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                        colors: [Colors.black87, Colors.transparent]),
+                  ),
+                  child: Text(s.name,
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                ),
+              ),
+            ]),
           ),
-        ]),
+        ),
       ),
     );
   }
