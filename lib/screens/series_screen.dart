@@ -78,6 +78,11 @@ class _SeriesScreenState extends State<SeriesScreen> {
       _all = results[0] as List<Series>;
       _categories = results[1] as List<Category>;
       _loading = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _filtered.isNotEmpty) {
+          _moveFocus(0, _filtered);
+  }
+});
     });
   }
 

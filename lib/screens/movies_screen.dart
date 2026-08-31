@@ -79,6 +79,11 @@ class _MoviesScreenState extends State<MoviesScreen> {
       _all = results[0] as List<Movie>;
       _categories = results[1] as List<Category>;
       _loading = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _filtered.isNotEmpty) {
+          _moveFocus(0, _filtered);
+  }
+});
     });
   }
 
