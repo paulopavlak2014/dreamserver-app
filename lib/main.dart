@@ -77,8 +77,7 @@ class _AppShellState extends State<_AppShell> {
     // OK / Enter / Select / Centro do D-pad
     if (key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.enter ||
-        key == LogicalKeyboardKey.numpadEnter ||
-        key == LogicalKeyboardKey.mediaSelect) {
+        key == LogicalKeyboardKey.numpadEnter) {
       // Simula ativação no widget focado
       final focused = FocusManager.instance.primaryFocus;
       if (focused != null) {
