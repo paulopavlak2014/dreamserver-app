@@ -26,6 +26,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
+  // Controla se o foco está no menu lateral ou no conteúdo
+  bool _sidebarFocused = true;
+
+  final _sidebarFocusNode = FocusScopeNode();
+  final _contentFocusNode = FocusScopeNode();
 
   static const _navItems = [
     _NavItem(Icons.home_rounded,          'Início'),
@@ -39,52 +44,99 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   @override
+  void dispose() {
+    _sidebarFocusNode.dispose();
+    _contentFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _goToContent() {
+    setState(() => _sidebarFocused = false);
+    _contentFocusNode.requestFocus();
+  }
+
+  void _goToSidebar() {
+    setState(() => _sidebarFocused = true);
+    _sidebarFocusNode.requestFocus();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
       body: Row(children: [
-        // Sidebar
-        Container(
-          width: 64,
-          color: const Color(0xFF0F0F0F),
-          child: Column(children: [
-            const SizedBox(height: 16),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 10),
-              child: Icon(Icons.play_circle_filled, color: kRed, size: 26),
-            ),
-            const Divider(color: Colors.white12, height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _navItems.length,
-                itemBuilder: (_, i) {
-                  final item = _navItems[i];
-                  return _SidebarItem(
-                    icon: item.icon,
-                    label: item.label,
-                    selected: _tab == i,
-                    onTap: () => setState(() => _tab = i),
-                  );
-                },
+
+        // ── Menu lateral com seu próprio FocusScope ──
+        FocusScope(
+          node: _sidebarFocusNode,
+          onKeyEvent: (node, event) {
+            // Seta direita: vai para o conteúdo
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.arrowRight) {
+              _goToContent();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Container(
+            width: 64,
+            color: const Color(0xFF0F0F0F),
+            child: Column(children: [
+              const SizedBox(height: 16),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Icon(Icons.play_circle_filled, color: kRed, size: 26),
               ),
-            ),
-          ]),
+              const Divider(color: Colors.white12, height: 16),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _navItems.length,
+                  itemBuilder: (_, i) {
+                    final item = _navItems[i];
+                    return _SidebarItem(
+                      icon: item.icon,
+                      label: item.label,
+                      selected: _tab == i,
+                      onTap: () {
+                        setState(() => _tab = i);
+                        _goToContent();
+                      },
+                    );
+                  },
+                ),
+              ),
+            ]),
+          ),
         ),
 
-        // IndexedStack mantém todas as telas vivas — sem recarregar ao trocar aba
+        // ── Conteúdo com seu próprio FocusScope ──
         Expanded(
-          child: IndexedStack(
-            index: _tab,
-            children: [
-              _HomePage(service: widget.service),
-              LiveScreen(service: widget.service),
-              EpgScreen(service: widget.service),
-              MoviesScreen(service: widget.service),
-              SeriesScreen(service: widget.service),
-              const SportsScreen(),
-              const FavoritesScreen(),
-              SettingsScreen(service: widget.service),
-            ],
+          child: FocusScope(
+            node: _contentFocusNode,
+            onKeyEvent: (node, event) {
+              // Seta esquerda na borda: volta pro menu lateral
+              if (event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                // Só vai pro sidebar se não há filho que consuma o evento
+                if (!node.hasPrimaryFocus) return KeyEventResult.ignored;
+                _goToSidebar();
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+            child: IndexedStack(
+              index: _tab,
+              children: [
+                _HomePage(service: widget.service),
+                LiveScreen(service: widget.service),
+                EpgScreen(service: widget.service),
+                MoviesScreen(service: widget.service),
+                SeriesScreen(service: widget.service),
+                const SportsScreen(),
+                const FavoritesScreen(),
+                SettingsScreen(service: widget.service),
+              ],
+            ),
           ),
         ),
       ]),
@@ -92,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Sidebar item com foco TV ─────────────────────────────────────────────────
+// ── Sidebar item ─────────────────────────────────────────────────────────────
 class _SidebarItem extends StatefulWidget {
   final IconData icon;
   final String label;

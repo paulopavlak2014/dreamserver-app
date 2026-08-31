@@ -28,7 +28,6 @@ class DreamServerApp extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0D0D0D),
         colorScheme: const ColorScheme.dark(primary: Color(0xFFE50914)),
-        // MaterialStateProperty = Flutter 3.19; 
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: const Color(0xFF141414),
           indicatorColor: const Color(0xFFE50914),
@@ -36,11 +35,79 @@ class DreamServerApp extends StatelessWidget {
             const TextStyle(color: Colors.white, fontSize: 12),
           ),
         ),
-        // Foco para TV / controle remoto
         focusColor: const Color(0xFFE50914).withOpacity(0.35),
         highlightColor: const Color(0xFFE50914).withOpacity(0.2),
       ),
-      home: const SplashScreen(),
+      home: const _AppShell(),
+    );
+  }
+}
+
+/// Shell global que intercepta teclas do controle remoto
+/// e repassa como eventos de foco para o Flutter
+class _AppShell extends StatefulWidget {
+  const _AppShell();
+  @override
+  State<_AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<_AppShell> {
+  final FocusNode _rootFocus = FocusNode();
+
+  @override
+  void dispose() {
+    _rootFocus.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    // Mapeia teclas do controle remoto Firestick/TV Box
+    final key = event.logicalKey;
+
+    // D-pad e teclas de navegação — deixa o Flutter processar normalmente
+    if (key == LogicalKeyboardKey.arrowUp ||
+        key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.arrowRight) {
+      return KeyEventResult.ignored; // Flutter gerencia navegação
+    }
+
+    // OK / Enter / Select / Centro do D-pad
+    if (key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter ||
+        key == LogicalKeyboardKey.mediaSelect) {
+      // Simula ativação no widget focado
+      final focused = FocusManager.instance.primaryFocus;
+      if (focused != null) {
+        Actions.maybeInvoke(focused.context!, const ActivateIntent());
+      }
+      return KeyEventResult.ignored;
+    }
+
+    // Botão Voltar / Back
+    if (key == LogicalKeyboardKey.escape ||
+        key == LogicalKeyboardKey.goBack ||
+        key == LogicalKeyboardKey.browserBack) {
+      final nav = Navigator.of(context, rootNavigator: false);
+      if (nav.canPop()) {
+        nav.pop();
+        return KeyEventResult.handled;
+      }
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: _rootFocus,
+      autofocus: true,
+      onKeyEvent: _handleKey,
+      child: const SplashScreen(),
     );
   }
 }
@@ -65,9 +132,11 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
     if (saved != null) {
       final svc = XtreamService(username: saved['user']!, password: saved['pass']!);
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HomeScreen(service: svc)));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => HomeScreen(service: svc)));
     } else {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const LoginScreen()));
     }
   }
 
@@ -79,8 +148,18 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('DREAM', style: TextStyle(color: Color(0xFFE50914), fontSize: 52, fontWeight: FontWeight.w900, letterSpacing: 8)),
-            Text('SERVER', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w300, letterSpacing: 12)),
+            Text('DREAM',
+                style: TextStyle(
+                    color: Color(0xFFE50914),
+                    fontSize: 52,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 8)),
+            Text('SERVER',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w300,
+                    letterSpacing: 12)),
             SizedBox(height: 32),
             CircularProgressIndicator(color: Color(0xFFE50914)),
           ],
