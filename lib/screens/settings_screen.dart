@@ -19,8 +19,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String _player = 'internal';
   bool _refreshing = false;
-
   final _m3uCtrl = TextEditingController();
+  final _m3uFocus = FocusNode();
   bool _savingM3u = false;
 
   @override
@@ -55,6 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _m3uCtrl.dispose();
+    _m3uFocus.dispose();
     super.dispose();
   }
 
@@ -145,79 +146,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Configurações',
-                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            const Text(
+              'Configurações',
+              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 24),
 
+            // Info do usuário
             _SectionCard(children: [
               _InfoRow(icon: Icons.person, label: 'Usuário', value: widget.service.username),
               const Divider(color: Color(0xFF2A2A2A), height: 24),
               _InfoRow(icon: Icons.dns_rounded, label: 'Servidor', value: XtreamService.baseUrl),
             ]),
-            const SizedBox(height: 16),
 
+            const SizedBox(height: 16),
             const Text('Lista M3U adicional', style: TextStyle(color: Colors.grey, fontSize: 13)),
             const SizedBox(height: 8),
+
             _SectionCard(children: [
               const Text(
                 'Cole a URL de uma lista M3U para adicionar canais extras na aba TV Ao Vivo.',
                 style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
               const SizedBox(height: 12),
-              TextField(
+
+              // Campo M3U com foco melhorado
+              _TvTextField(
                 controller: _m3uCtrl,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: 'http://servidor.com/lista.m3u',
-                  hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
-                  filled: true,
-                  fillColor: const Color(0xFF0F0F0F),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF2A2A2A)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF2A2A2A)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: _kRed),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  prefixIcon: const Icon(Icons.list_alt_rounded, color: Colors.white38, size: 18),
-                  suffixIcon: _m3uCtrl.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, color: Colors.white38, size: 18),
-                          onPressed: () {
-                            _m3uCtrl.clear();
-                            setState(() {});
-                          },
-                        )
-                      : null,
-                ),
+                focusNode: _m3uFocus,
+                hint: 'http://servidor.com/lista.m3u',
                 onChanged: (_) => setState(() {}),
-                keyboardType: TextInputType.url,
-                autocorrect: false,
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: _TvFocusButton(
-                  onTap: _savingM3u ? null : _saveM3u,
-                  child: _savingM3u
-                      ? const SizedBox(
-                          height: 16, width: 16,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Salvar lista M3U',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
-                ),
+
+              const SizedBox(height: 12),
+
+              _TvFocusButton(
+                onTap: _savingM3u ? null : _saveM3u,
+                child: _savingM3u
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text(
+                        'Salvar lista M3U',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
               ),
             ]),
-            const SizedBox(height: 16),
 
+            const SizedBox(height: 16),
             const Text('Player', style: TextStyle(color: Colors.grey, fontSize: 13)),
             const SizedBox(height: 8),
+
             _SectionCard(children: [
               for (var i = 0; i < PlayerPrefs.options.length; i++) ...[
                 if (i > 0) const Divider(color: Color(0xFF2A2A2A), height: 16),
@@ -228,6 +209,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ]),
+
             const SizedBox(height: 16),
 
             _SectionCard(children: [
@@ -252,6 +234,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: _confirmLogout,
               ),
             ]),
+
             const SizedBox(height: 24),
             const Center(
               child: Text('DreamServer IPTV', style: TextStyle(color: Colors.grey, fontSize: 12)),
@@ -263,11 +246,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-// ── Botão com foco para TV ──────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Campo de texto com foco para TV
+// ─────────────────────────────────────────────────────────────
+class _TvTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String hint;
+  final ValueChanged<String>? onChanged;
 
+  const _TvTextField({
+    required this.controller,
+    required this.focusNode,
+    required this.hint,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: focusNode,
+      child: Builder(
+        builder: (context) {
+          final hasFocus = Focus.of(context).hasFocus;
+
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: hasFocus ? _kRed : const Color(0xFF2A2A2A),
+                width: hasFocus ? 2.5 : 1,
+              ),
+              boxShadow: hasFocus
+                  ? [
+                      BoxShadow(
+                        color: _kRed.withOpacity(0.35),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      )
+                    ]
+                  : [],
+            ),
+            child: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              cursorColor: _kRed,
+              onChanged: onChanged,
+              keyboardType: TextInputType.url,
+              autocorrect: false,
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+                filled: true,
+                fillColor: const Color(0xFF0F0F0F),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                prefixIcon: Icon(
+                  Icons.list_alt_rounded,
+                  color: hasFocus ? _kRed : Colors.white38,
+                  size: 20,
+                ),
+                suffixIcon: controller.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.white38, size: 18),
+                        onPressed: () {
+                          controller.clear();
+                          onChanged?.call('');
+                        },
+                      )
+                    : null,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Botão com foco para TV
+// ─────────────────────────────────────────────────────────────
 class _TvFocusButton extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
+
   const _TvFocusButton({required this.child, this.onTap});
 
   @override
@@ -275,96 +351,139 @@ class _TvFocusButton extends StatefulWidget {
 }
 
 class _TvFocusButtonState extends State<_TvFocusButton> {
-  bool _focused = false;
-
   @override
   Widget build(BuildContext context) {
     return Focus(
-      onFocusChange: (v) => setState(() => _focused = v),
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||
-             event.logicalKey == LogicalKeyboardKey.enter)) {
+                event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.numpadEnter ||
+                event.logicalKey == LogicalKeyboardKey.space)) {
           widget.onTap?.call();
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
       },
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: _focused ? Colors.white24 : _kRed,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _focused ? Colors.white : Colors.transparent, width: 2),
-          ),
-          alignment: Alignment.center,
-          child: widget.child,
-        ),
+      child: Builder(
+        builder: (context) {
+          final hasFocus = Focus.of(context).hasFocus;
+
+          return GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: hasFocus ? Colors.white24 : _kRed,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: hasFocus ? Colors.white : Colors.transparent,
+                  width: 2.5,
+                ),
+                boxShadow: hasFocus
+                    ? [
+                        const BoxShadow(
+                          color: Colors.white30,
+                          blurRadius: 10,
+                          spreadRadius: 1,
+                        )
+                      ]
+                    : [],
+              ),
+              alignment: Alignment.center,
+              child: widget.child,
+            ),
+          );
+        },
       ),
     );
   }
 }
 
-// ── Widgets auxiliares ──────────────────────────────────────────────────────
-
+// ─────────────────────────────────────────────────────────────
+// Opção de Player
+// ─────────────────────────────────────────────────────────────
 class _PlayerOption extends StatefulWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _PlayerOption({required this.label, required this.selected, required this.onTap});
+
+  const _PlayerOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   State<_PlayerOption> createState() => _PlayerOptionState();
 }
 
 class _PlayerOptionState extends State<_PlayerOption> {
-  bool _focused = false;
-
   @override
   Widget build(BuildContext context) {
     return Focus(
-      onFocusChange: (v) => setState(() => _focused = v),
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||
-             event.logicalKey == LogicalKeyboardKey.enter)) {
+                event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
           widget.onTap();
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
       },
-      child: InkWell(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-          decoration: BoxDecoration(
-            color: _focused ? Colors.white12 : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _focused ? Colors.white : Colors.transparent, width: 2),
-          ),
-          child: Row(children: [
-            Icon(
-                widget.selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                color: widget.selected ? _kRed : Colors.grey,
-                size: 20),
-            const SizedBox(width: 12),
-            Text(widget.label,
-                style: TextStyle(
-                    color: widget.selected ? Colors.white : Colors.grey, fontSize: 14)),
-          ]),
-        ),
+      child: Builder(
+        builder: (context) {
+          final hasFocus = Focus.of(context).hasFocus;
+
+          return GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+              decoration: BoxDecoration(
+                color: hasFocus ? Colors.white12 : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: hasFocus ? Colors.white : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    widget.selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                    color: widget.selected ? _kRed : Colors.grey,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    widget.label,
+                    style: TextStyle(
+                      color: widget.selected ? Colors.white : Colors.grey,
+                      fontSize: 15,
+                      fontWeight: widget.selected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Widgets auxiliares
+// ─────────────────────────────────────────────────────────────
 class _SectionCard extends StatelessWidget {
   final List<Widget> children;
   const _SectionCard({required this.children});
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -375,7 +494,10 @@ class _SectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFF2A2A2A)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
     );
   }
 }
@@ -384,20 +506,31 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _InfoRow({required this.icon, required this.label, required this.value});
+
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
   @override
   Widget build(BuildContext context) {
-    return Row(children: [
-      Icon(icon, color: Colors.grey, size: 20),
-      const SizedBox(width: 12),
-      Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-      const Spacer(),
-      Flexible(
-          child: Text(value,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right)),
-    ]);
+    return Row(
+      children: [
+        Icon(icon, color: Colors.grey, size: 20),
+        const SizedBox(width: 12),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+        const Spacer(),
+        Flexible(
+          child: Text(
+            value,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -406,45 +539,66 @@ class _ActionRow extends StatefulWidget {
   final String label;
   final Color color;
   final VoidCallback? onTap;
-  const _ActionRow({required this.icon, required this.label, required this.color, this.onTap});
+
+  const _ActionRow({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.onTap,
+  });
 
   @override
   State<_ActionRow> createState() => _ActionRowState();
 }
 
 class _ActionRowState extends State<_ActionRow> {
-  bool _focused = false;
-
   @override
   Widget build(BuildContext context) {
     return Focus(
-      onFocusChange: (v) => setState(() => _focused = v),
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||
-             event.logicalKey == LogicalKeyboardKey.enter)) {
+                event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
           widget.onTap?.call();
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
       },
-      child: InkWell(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-          decoration: BoxDecoration(
-            color: _focused ? Colors.white12 : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _focused ? Colors.white : Colors.transparent, width: 2),
-          ),
-          child: Row(children: [
-            Icon(widget.icon, color: widget.color, size: 20),
-            const SizedBox(width: 12),
-            Text(widget.label,
-                style: TextStyle(color: widget.color, fontSize: 15, fontWeight: FontWeight.w600)),
-          ]),
-        ),
+      child: Builder(
+        builder: (context) {
+          final hasFocus = Focus.of(context).hasFocus;
+
+          return GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+              decoration: BoxDecoration(
+                color: hasFocus ? Colors.white12 : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: hasFocus ? Colors.white : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(widget.icon, color: widget.color, size: 22),
+                  const SizedBox(width: 12),
+                  Text(
+                    widget.label,
+                    style: TextStyle(
+                      color: widget.color,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

@@ -9,10 +9,16 @@ import 'screens/home_screen.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+
+  // Força orientação landscape (TV)
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
+
+  // Remove barra de status / navegação (melhor em TV)
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
   runApp(const DreamServerApp());
 }
 
@@ -28,31 +34,26 @@ class DreamServerApp extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0D0D0D),
         colorScheme: const ColorScheme.dark(primary: Color(0xFFE50914)),
-        navigationBarTheme: NavigationBarThemeData(
-          backgroundColor: const Color(0xFF141414),
-          indicatorColor: const Color(0xFFE50914),
-          labelTextStyle: MaterialStateProperty.all(
-            const TextStyle(color: Colors.white, fontSize: 12),
-          ),
-        ),
-        focusColor: const Color(0xFFE50914).withOpacity(0.35),
-        highlightColor: const Color(0xFFE50914).withOpacity(0.2),
+        focusColor: const Color(0xFFE50914),
+        highlightColor: const Color(0xFFE50914).withOpacity(0.25),
+        // Importante para TV: mostra claramente o foco
+        visualDensity: VisualDensity.comfortable,
       ),
       home: const _AppShell(),
     );
   }
 }
 
-/// Shell global que intercepta teclas do controle remoto
-/// e repassa como eventos de foco para o Flutter
+/// Shell global que captura teclas do controle remoto
 class _AppShell extends StatefulWidget {
   const _AppShell();
+
   @override
   State<_AppShell> createState() => _AppShellState();
 }
 
 class _AppShellState extends State<_AppShell> {
-  final FocusNode _rootFocus = FocusNode();
+  final FocusNode _rootFocus = FocusNode(debugLabel: 'RootFocus');
 
   @override
   void dispose() {
@@ -63,36 +64,43 @@ class _AppShellState extends State<_AppShell> {
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
-    // Mapeia teclas do controle remoto Firestick/TV Box
     final key = event.logicalKey;
 
-    // D-pad e teclas de navegação — deixa o Flutter processar normalmente
+    // === Setas do D-pad → deixa o Flutter navegar normalmente ===
     if (key == LogicalKeyboardKey.arrowUp ||
         key == LogicalKeyboardKey.arrowDown ||
         key == LogicalKeyboardKey.arrowLeft ||
         key == LogicalKeyboardKey.arrowRight) {
-      return KeyEventResult.ignored; // Flutter gerencia navegação
+      return KeyEventResult.ignored;
     }
 
-    // OK / Enter / Select / Centro do D-pad
+    // === OK / Select / Enter / Centro do D-pad ===
     if (key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.enter ||
-        key == LogicalKeyboardKey.numpadEnter) {
-      // Simula ativação no widget focado
+        key == LogicalKeyboardKey.numpadEnter ||
+        key == LogicalKeyboardKey.space) {
       final focused = FocusManager.instance.primaryFocus;
-      if (focused != null) {
-        Actions.maybeInvoke(focused.context!, const ActivateIntent());
+      if (focused != null && focused.context != null) {
+        // Tenta ativar o widget focado
+        final result = Actions.maybeInvoke(
+          focused.context!,
+          const ActivateIntent(),
+        );
+        if (result != null) {
+          return KeyEventResult.handled;
+        }
       }
       return KeyEventResult.ignored;
     }
 
-    // Botão Voltar / Back
+    // === Botão Voltar (Back) ===
     if (key == LogicalKeyboardKey.escape ||
         key == LogicalKeyboardKey.goBack ||
-        key == LogicalKeyboardKey.browserBack) {
-      final nav = Navigator.of(context, rootNavigator: false);
-      if (nav.canPop()) {
-        nav.pop();
+        key == LogicalKeyboardKey.browserBack ||
+        key == LogicalKeyboardKey.backspace) {
+      final navigator = Navigator.of(context, rootNavigator: false);
+      if (navigator.canPop()) {
+        navigator.pop();
         return KeyEventResult.handled;
       }
     }
@@ -126,16 +134,26 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _check() async {
-    await Future.delayed(const Duration(seconds: 1));
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) return;
+
     final saved = await AuthStore.load();
     if (!mounted) return;
+
     if (saved != null) {
-      final svc = XtreamService(username: saved['user']!, password: saved['pass']!);
+      final svc = XtreamService(
+        username: saved['user']!,
+        password: saved['pass']!,
+      );
       Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => HomeScreen(service: svc)));
+        context,
+        MaterialPageRoute(builder: (_) => HomeScreen(service: svc)),
+      );
     } else {
       Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
     }
   }
 
@@ -147,19 +165,25 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('DREAM',
-                style: TextStyle(
-                    color: Color(0xFFE50914),
-                    fontSize: 52,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 8)),
-            Text('SERVER',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w300,
-                    letterSpacing: 12)),
-            SizedBox(height: 32),
+            Text(
+              'DREAM',
+              style: TextStyle(
+                color: Color(0xFFE50914),
+                fontSize: 52,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 8,
+              ),
+            ),
+            Text(
+              'SERVER',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w300,
+                letterSpacing: 12,
+              ),
+            ),
+            SizedBox(height: 36),
             CircularProgressIndicator(color: Color(0xFFE50914)),
           ],
         ),
