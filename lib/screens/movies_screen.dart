@@ -22,8 +22,10 @@ class MoviesScreenState extends State<MoviesScreen> {
   String _search = '';
   bool _loading = true;
   final _searchCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
+
+  int _columns = 4;
   final Map<int, FocusNode> _focusNodes = {};
-  final _gridScrollCtrl = ScrollController();
 
   @override
   void initState() {
@@ -37,7 +39,7 @@ class MoviesScreenState extends State<MoviesScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
-    _gridScrollCtrl.dispose();
+    _scrollCtrl.dispose();
     for (final n in _focusNodes.values) {
       n.dispose();
     }
@@ -80,6 +82,11 @@ class MoviesScreenState extends State<MoviesScreen> {
     });
   }
 
+  Future<void> _refresh() async {
+    _searchCtrl.clear();
+    await _load();
+  }
+
   List<Movie> get _filtered {
     var list = _all;
     if (_selectedCat.isNotEmpty) {
@@ -91,6 +98,11 @@ class MoviesScreenState extends State<MoviesScreen> {
     return list;
   }
 
+  int _calcColumns(double width) {
+    final available = width - 24;
+    return (available / 165).floor().clamp(2, 6);
+  }
+
   void _openMovie(Movie m) {
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl)));
@@ -98,93 +110,110 @@ class MoviesScreenState extends State<MoviesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = _filtered;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _columns = _calcColumns(constraints.maxWidth);
+        final items = _filtered;
+        final rows = (items.length / _columns).ceil();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Row(children: [
-            Container(
-              width: 3,
-              height: 16,
-              decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(2)),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(children: [
+                Container(
+                  width: 3,
+                  height: 16,
+                  decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(2)),
+                ),
+                const SizedBox(width: 8),
+                const Text('Filmes',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                Text('${items.length} filmes', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: Colors.grey, size: 20),
+                  onPressed: _refresh,
+                  tooltip: 'Recarregar',
+                ),
+              ]),
             ),
-            const SizedBox(width: 8),
-            const Text('Filmes',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const Spacer(),
-            Text('${items.length} filmes', style: const TextStyle(color: Colors.grey, fontSize: 11)),
-            IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.grey, size: 20),
-              onPressed: _load,
-              tooltip: 'Recarregar',
-            ),
-          ]),
-        ),
-        if (_categories.isNotEmpty)
-          SizedBox(
-            height: 38,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: _categories.length + 1,
-              itemBuilder: (_, i) {
-                final isAll = i == 0;
-                final cat = isAll ? null : _categories[i - 1];
-                final active = isAll ? _selectedCat.isEmpty : _selectedCat == cat!.id;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: ChoiceChip(
-                    label: Text(isAll ? 'Todos' : cat!.name,
-                        style: TextStyle(color: active ? Colors.white : Colors.grey, fontSize: 11)),
-                    selected: active,
-                    onSelected: (_) => setState(() {
-                      _selectedCat = isAll ? '' : cat!.id;
-                    }),
-                    selectedColor: _kRed,
-                    backgroundColor: const Color(0xFF1E1E1E),
-                    side: BorderSide(color: active ? _kRed : Colors.white12),
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                );
-              },
-            ),
-          ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: _loading
-              ? const Center(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    CircularProgressIndicator(color: _kRed),
-                    SizedBox(height: 16),
-                    Text('Carregando filmes...', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  ]),
-                )
-              : items.isEmpty
-                  ? const Center(child: Text('Nenhum filme encontrado', style: TextStyle(color: Colors.grey)))
-                  : GridView.builder(
-                      controller: _gridScrollCtrl,
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 150,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 2 / 3,
+            if (_categories.isNotEmpty)
+              SizedBox(
+                height: 38,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: _categories.length + 1,
+                  itemBuilder: (_, i) {
+                    final isAll = i == 0;
+                    final cat = isAll ? null : _categories[i - 1];
+                    final active = isAll ? _selectedCat.isEmpty : _selectedCat == cat!.id;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ChoiceChip(
+                        label: Text(isAll ? 'Todos' : cat!.name,
+                            style: TextStyle(color: active ? Colors.white : Colors.grey, fontSize: 11)),
+                        selected: active,
+                        onSelected: (_) => setState(() {
+                          _selectedCat = isAll ? '' : cat!.id;
+                        }),
+                        selectedColor: _kRed,
+                        backgroundColor: const Color(0xFF1E1E1E),
+                        side: BorderSide(color: active ? _kRed : Colors.white12),
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        visualDensity: VisualDensity.compact,
                       ),
-                      itemCount: items.length,
-                      itemBuilder: (_, i) => _MovieTile(
-                        key: ValueKey('movie_${items[i].id}_$i'),
-                        movie: items[i],
-                        focusNode: _nodeFor(i),
-                        onOpen: () => _openMovie(items[i]),
-                      ),
-                    ),
-        ),
-      ],
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _loading
+                  ? const Center(
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        CircularProgressIndicator(color: _kRed),
+                        SizedBox(height: 16),
+                        Text('Carregando filmes...', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      ]),
+                    )
+                  : items.isEmpty
+                      ? const Center(child: Text('Nenhum filme encontrado', style: TextStyle(color: Colors.grey)))
+                      : ListView.builder(
+                          controller: _scrollCtrl,
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                          itemCount: rows,
+                          itemBuilder: (_, row) {
+                            final start = row * _columns;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Row(
+                                children: [
+                                  for (var col = 0; col < _columns; col++) ...[
+                                    if (col > 0) const SizedBox(width: 12),
+                                    if (start + col < items.length)
+                                      Expanded(
+                                        child: _MovieTile(
+                                          movie: items[start + col],
+                                          focusNode: _nodeFor(start + col),
+                                          onOpen: () => _openMovie(items[start + col]),
+                                        ),
+                                      )
+                                    else
+                                      const Expanded(child: SizedBox()),
+                                  ],
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -243,6 +272,7 @@ class _MovieTileState extends State<_MovieTile> {
         onTap: widget.onOpen,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
+          height: 180,
           transform: _focused ? (Matrix4.identity()..scale(1.05)) : Matrix4.identity(),
           transformAlignment: Alignment.center,
           decoration: BoxDecoration(
