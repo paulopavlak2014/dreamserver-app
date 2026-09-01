@@ -390,15 +390,101 @@ class HomePageState extends State<_HomePage> {
           builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl),
         ));
       } else if (_focusSection == 2 && _focusIndex < _seriesCount()) {
-        final s = _series[_focusIndex];
-        Navigator.push(context, MaterialPageRoute(
-          builder: (_) => PlayerScreen(title: s.name, url: s.streamUrl),
-        ));
+        _openSeries(_series[_focusIndex]);
       }
       return KeyEventResult.handled;
     }
 
     return KeyEventResult.ignored;
+  }
+
+  Future<void> _openSeries(Series s) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: kRed)),
+    );
+
+    final info = await widget.service.getSeriesInfo(s.id);
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    if (info == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível cargar os episodios.')));
+      return;
+    }
+
+    final episodes = <Map<String, dynamic>>[];
+    final seasons = info['episodes'];
+    if (seasons is Map) {
+      for (final seasonEpisodes in seasons.values) {
+        if (seasonEpisodes is List) {
+          for (final ep in seasonEpisodes) {
+            if (ep is Map<String, dynamic>) episodes.add(ep);
+          }
+        }
+      }
+    }
+
+    if (episodes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nenhum episodio encontrado.')));
+      return;
+    }
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          builder: (_, scrollController) {
+            return Column(children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(s.name,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: episodes.length,
+                  itemBuilder: (_, i) {
+                    final ep = episodes[i];
+                    final title = ep['title']?.toString() ??
+                        'Episodio ${ep['episode_num'] ?? (i + 1)}';
+                    final id = ep['id']?.toString() ?? '';
+                    final ext = ep['container_extension']?.toString() ?? 'mp4';
+                    return _EpisodeTile(
+                      title: title,
+                      subtitle: 'S${ep['season'] ?? '?'} E${ep['episode_num'] ?? '?'}',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        final url = widget.service.seriesEpisodeUrl(s.id, id, ext);
+                        Navigator.push(context,
+                            MaterialPageRoute(
+                                builder: (_) => PlayerScreen(title: title, url: url)));
+                      },
+                    );
+                  },
+                ),
+              ),
+            ]);
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -471,7 +557,8 @@ class HomePageState extends State<_HomePage> {
                   children: [
                     for (var i = 0; i < series.length; i++) ...[
                       if (i > 0) const SizedBox(width: 8),
-                      _SeriesCard(series: series[i], isFocused: _focusSection == 2 && _focusIndex == i),
+                      _SeriesCard(series: series[i], isFocused: _focusSection == 2 && _focusIndex == i,
+                        onOpen: () => _openSeries(series[i])),
                     ],
                   ],
                 ),
@@ -488,8 +575,9 @@ class HomePageState extends State<_HomePage> {
 class _SeriesCard extends StatefulWidget {
   final Series series;
   final bool isFocused;
+  final VoidCallback onOpen;
 
-  const _SeriesCard({required this.series, required this.isFocused});
+  const _SeriesCard({required this.series, required this.isFocused, required this.onOpen});
 
   @override
   State<_SeriesCard> createState() => _SeriesCardState();
@@ -500,9 +588,7 @@ class _SeriesCardState extends State<_SeriesCard> {
   Widget build(BuildContext context) {
     final focused = widget.isFocused;
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(
-        builder: (_) => PlayerScreen(title: widget.series.name, url: widget.series.streamUrl),
-      )),
+      onTap: widget.onOpen,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         width: 95,
@@ -764,6 +850,47 @@ class _MovieCardState extends State<_MovieCard> {
                   maxLines: 2, overflow: TextOverflow.ellipsis),
             )),
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _EpisodeTile extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _EpisodeTile({required this.title, required this.subtitle, required this.onTap});
+
+  @override
+  State<_EpisodeTile> createState() => _EpisodeTileState();
+}
+
+class _EpisodeTileState extends State<_EpisodeTile> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return FocusableActionDetector(
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) { widget.onTap(); return null; },
+        ),
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: _focused ? Colors.white12 : Colors.transparent,
+          border: Border.all(color: _focused ? Colors.white : Colors.transparent, width: 2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ListTile(
+          title: Text(widget.title, style: const TextStyle(color: Colors.white)),
+          subtitle: Text(widget.subtitle, style: const TextStyle(color: Colors.grey)),
+          trailing: const Icon(Icons.play_arrow, color: kRed),
+          onTap: widget.onTap,
         ),
       ),
     );
