@@ -22,9 +22,6 @@ class MoviesScreenState extends State<MoviesScreen> {
   String _search = '';
   bool _loading = true;
   final _searchCtrl = TextEditingController();
-  final _scrollCtrl = ScrollController();
-
-  int _columns = 4;
   final Map<int, FocusNode> _focusNodes = {};
 
   @override
@@ -39,7 +36,6 @@ class MoviesScreenState extends State<MoviesScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
-    _scrollCtrl.dispose();
     for (final n in _focusNodes.values) {
       n.dispose();
     }
@@ -98,11 +94,6 @@ class MoviesScreenState extends State<MoviesScreen> {
     return list;
   }
 
-  int _calcColumns(double width) {
-    final available = width - 24;
-    return (available / 165).floor().clamp(2, 6);
-  }
-
   void _openMovie(Movie m) {
     Navigator.push(context,
         MaterialPageRoute(builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl)));
@@ -110,110 +101,86 @@ class MoviesScreenState extends State<MoviesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        _columns = _calcColumns(constraints.maxWidth);
-        final items = _filtered;
-        final rows = (items.length / _columns).ceil();
+    final items = _filtered;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Row(children: [
-                Container(
-                  width: 3,
-                  height: 16,
-                  decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(2)),
-                ),
-                const SizedBox(width: 8),
-                const Text('Filmes',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                const Spacer(),
-                Text('${items.length} filmes', style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.grey, size: 20),
-                  onPressed: _refresh,
-                  tooltip: 'Recarregar',
-                ),
-              ]),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(children: [
+            Container(
+              width: 3,
+              height: 16,
+              decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(2)),
             ),
-            if (_categories.isNotEmpty)
-              SizedBox(
-                height: 38,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: _categories.length + 1,
-                  itemBuilder: (_, i) {
-                    final isAll = i == 0;
-                    final cat = isAll ? null : _categories[i - 1];
-                    final active = isAll ? _selectedCat.isEmpty : _selectedCat == cat!.id;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: ChoiceChip(
-                        label: Text(isAll ? 'Todos' : cat!.name,
-                            style: TextStyle(color: active ? Colors.white : Colors.grey, fontSize: 11)),
-                        selected: active,
-                        onSelected: (_) => setState(() {
-                          _selectedCat = isAll ? '' : cat!.id;
-                        }),
-                        selectedColor: _kRed,
-                        backgroundColor: const Color(0xFF1E1E1E),
-                        side: BorderSide(color: active ? _kRed : Colors.white12),
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        visualDensity: VisualDensity.compact,
+            const SizedBox(width: 8),
+            const Text('Filmes',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Spacer(),
+            Text('${items.length} filmes', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.grey, size: 20),
+              onPressed: _refresh,
+              tooltip: 'Recarregar',
+            ),
+          ]),
+        ),
+        if (_categories.isNotEmpty)
+          SizedBox(
+            height: 38,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _categories.length + 1,
+              itemBuilder: (_, i) {
+                final isAll = i == 0;
+                final cat = isAll ? null : _categories[i - 1];
+                final active = isAll ? _selectedCat.isEmpty : _selectedCat == cat!.id;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(isAll ? 'Todos' : cat!.name,
+                        style: TextStyle(color: active ? Colors.white : Colors.grey, fontSize: 11)),
+                    selected: active,
+                    onSelected: (_) => setState(() {
+                      _selectedCat = isAll ? '' : cat!.id;
+                    }),
+                    selectedColor: _kRed,
+                    backgroundColor: const Color(0xFF1E1E1E),
+                    side: BorderSide(color: active ? _kRed : Colors.white12),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                );
+              },
+            ),
+          ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: _loading
+              ? const Center(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    CircularProgressIndicator(color: _kRed),
+                    SizedBox(height: 16),
+                    Text('Carregando filmes...', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  ]),
+                )
+              : items.isEmpty
+                  ? const Center(child: Text('Nenhum filme encontrado', style: TextStyle(color: Colors.grey)))
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                      itemCount: items.length,
+                      itemBuilder: (_, i) => _MovieTile(
+                        key: ValueKey('movie_${items[i].id}_$i'),
+                        movie: items[i],
+                        focusNode: _nodeFor(i),
+                        onOpen: () => _openMovie(items[i]),
                       ),
-                    );
-                  },
-                ),
-              ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _loading
-                  ? const Center(
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        CircularProgressIndicator(color: _kRed),
-                        SizedBox(height: 16),
-                        Text('Carregando filmes...', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      ]),
-                    )
-                  : items.isEmpty
-                      ? const Center(child: Text('Nenhum filme encontrado', style: TextStyle(color: Colors.grey)))
-                      : ListView.builder(
-                          controller: _scrollCtrl,
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                          itemCount: rows,
-                          itemBuilder: (_, row) {
-                            final start = row * _columns;
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Row(
-                                children: [
-                                  for (var col = 0; col < _columns; col++) ...[
-                                    if (col > 0) const SizedBox(width: 12),
-                                    if (start + col < items.length)
-                                      Expanded(
-                                        child: _MovieTile(
-                                          movie: items[start + col],
-                                          focusNode: _nodeFor(start + col),
-                                          onOpen: () => _openMovie(items[start + col]),
-                                        ),
-                                      )
-                                    else
-                                      const Expanded(child: SizedBox()),
-                                  ],
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-            ),
-          ],
-        );
-      },
+                    ),
+        ),
+      ],
     );
   }
 }
@@ -271,104 +238,62 @@ class _MovieTileState extends State<_MovieTile> {
       child: GestureDetector(
         onTap: widget.onOpen,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          height: 180,
-          transform: _focused ? (Matrix4.identity()..scale(1.05)) : Matrix4.identity(),
-          transformAlignment: Alignment.center,
+          duration: const Duration(milliseconds: 120),
+          margin: const EdgeInsets.only(bottom: 6),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
+            color: _focused ? _kRed.withOpacity(0.18) : const Color(0xFF161616),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: _focused ? _kRed : Colors.transparent,
-              width: 3,
+              width: 2,
             ),
-            boxShadow: _focused
-                ? [
-                    BoxShadow(color: _kRed.withOpacity(0.4), blurRadius: 12, spreadRadius: 2),
-                    const BoxShadow(color: Colors.black54, blurRadius: 8, spreadRadius: 2),
-                  ]
-                : [const BoxShadow(color: Colors.black38, blurRadius: 4)],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: Stack(fit: StackFit.expand, children: [
-              m.cover != null
-                  ? CachedNetworkImage(
-                      imageUrl: m.cover!,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => Container(
-                        color: const Color(0xFF1A1A1A),
-                        child: const Icon(Icons.movie, color: Colors.grey, size: 32),
-                      ))
-                  : Container(
-                      color: const Color(0xFF1A1A1A),
-                      child: const Icon(Icons.movie, color: Colors.grey, size: 32)),
-              if (_focused)
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [_kRed.withOpacity(0.15), Colors.transparent],
-                    ),
+          child: Row(children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+              child: Container(
+                width: 90,
+                height: 60,
+                color: const Color(0xFF1E1E1E),
+                child: m.cover != null
+                    ? CachedNetworkImage(
+                        imageUrl: m.cover!,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => const Icon(Icons.movie, color: Colors.grey, size: 24))
+                    : const Icon(Icons.movie, color: Colors.grey, size: 24),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Text(
+                  m.name,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: _focused ? FontWeight.bold : FontWeight.w500,
                   ),
-                ),
-              Positioned(
-                top: 4,
-                right: 4,
-                child: GestureDetector(
-                  onTap: _toggleFav,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Icon(
-                      _isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                      color: _isFav ? Colors.amber : Colors.white,
-                      size: 18,
-                    ),
-                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [Colors.black87, Colors.transparent],
-                    ),
-                  ),
-                  child: Text(m.name,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: _focused ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
+            ),
+            GestureDetector(
+              onTap: _toggleFav,
+              child: Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.all(6),
+                child: Icon(
+                  _isFav ? Icons.star_rounded : Icons.star_border_rounded,
+                  color: _isFav ? Colors.amber : Colors.grey,
+                  size: 20,
                 ),
               ),
-              if (_focused)
-                Positioned(
-                  top: 4,
-                  left: 4,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _kRed,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text('▶', style: TextStyle(color: Colors.white, fontSize: 10)),
-                  ),
-                ),
-            ]),
-          ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.play_arrow, color: _kRed, size: 22),
+            const SizedBox(width: 10),
+          ]),
         ),
       ),
     );
