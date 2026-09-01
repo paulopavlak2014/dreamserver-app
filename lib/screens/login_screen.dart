@@ -141,18 +141,25 @@ class _LoginScreenState extends State<LoginScreen> {
                       return GestureDetector(
                         onTap: _loading ? null : _login,
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 120),
+                          duration: const Duration(milliseconds: 150),
                           width: double.infinity,
-                          height: 54,
+                          height: 56,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE50914),
-                            borderRadius: BorderRadius.circular(8),
+                            color: hasFocus ? const Color(0xFFB0060F) : const Color(0xFFE50914),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: hasFocus ? Colors.white : Colors.transparent,
                               width: 3,
                             ),
                             boxShadow: hasFocus
-                                ? [const BoxShadow(color: Colors.white54, blurRadius: 12)]
+                                ? [
+                                    const BoxShadow(color: Colors.white54, blurRadius: 14, spreadRadius: 1),
+                                    BoxShadow(
+                                      color: const Color(0xFFE50914).withOpacity(0.4),
+                                      blurRadius: 20,
+                                      spreadRadius: 2,
+                                    ),
+                                  ]
                                 : null,
                           ),
                           alignment: Alignment.center,
@@ -162,13 +169,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                   height: 24,
                                   child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                                 )
-                              : const Text(
-                                  'Entrar',
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.login, color: Colors.white, size: hasFocus ? 22 : 18),
+                                    const SizedBox(width: 10),
+                                    const Text(
+                                      'Entrar',
+                                      style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                         ),
                       );
@@ -194,23 +208,42 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return Focus(
       focusNode: focusNode,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+             event.logicalKey == LogicalKeyboardKey.enter ||
+             event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+          // Seleciona todo o texto ao focar com OK/Enter
+          controller.selection = TextSelection(
+            baseOffset: 0,
+            extentOffset: controller.text.length,
+          );
+          return KeyEventResult.ignored;
+        }
+        return KeyEventResult.ignored;
+      },
       child: Builder(builder: (context) {
         final hasFocus = Focus.of(context).hasFocus;
         return AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: const Duration(milliseconds: 150),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: hasFocus ? const Color(0xFFE50914) : Colors.transparent,
-              width: 3,
+              color: hasFocus ? const Color(0xFFE50914) : const Color(0xFF2A2A2A),
+              width: hasFocus ? 3 : 1.5,
             ),
             boxShadow: hasFocus
                 ? [
                     BoxShadow(
-                      color: const Color(0xFFE50914).withOpacity(0.45),
-                      blurRadius: 14,
-                      spreadRadius: 1,
-                    )
+                      color: const Color(0xFFE50914).withOpacity(0.5),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFFE50914).withOpacity(0.25),
+                      blurRadius: 30,
+                      spreadRadius: 4,
+                    ),
                   ]
                 : null,
           ),
@@ -226,25 +259,27 @@ class _LoginScreenState extends State<LoginScreen> {
               labelText: label,
               labelStyle: TextStyle(
                 color: hasFocus ? const Color(0xFFE50914) : Colors.grey,
+                fontSize: hasFocus ? 15 : 14,
               ),
               prefixIcon: Icon(
                 icon,
                 color: hasFocus ? const Color(0xFFE50914) : Colors.grey,
+                size: hasFocus ? 24 : 20,
               ),
               suffixIcon: suffix,
               filled: true,
-              fillColor: const Color(0xFF1A1A1A),
+              fillColor: hasFocus ? const Color(0xFF222222) : const Color(0xFF1A1A1A),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
               ),
             ),

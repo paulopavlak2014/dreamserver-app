@@ -143,103 +143,106 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Configurações',
-              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
-
-            // Info do usuário
-            _SectionCard(children: [
-              _InfoRow(icon: Icons.person, label: 'Usuário', value: widget.service.username),
-              const Divider(color: Color(0xFF2A2A2A), height: 24),
-              _InfoRow(icon: Icons.dns_rounded, label: 'Servidor', value: XtreamService.baseUrl),
-            ]),
-
-            const SizedBox(height: 16),
-            const Text('Lista M3U adicional', style: TextStyle(color: Colors.grey, fontSize: 13)),
-            const SizedBox(height: 8),
-
-            _SectionCard(children: [
+        child: FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               const Text(
-                'Cole a URL de uma lista M3U para adicionar canais extras na aba TV Ao Vivo.',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                'Configurações',
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 24),
 
-              // Campo M3U com foco melhorado
-              _TvTextField(
-                controller: _m3uCtrl,
-                focusNode: _m3uFocus,
-                hint: 'http://servidor.com/lista.m3u',
-                onChanged: (_) => setState(() {}),
-              ),
+              // Info do usuário
+              _SectionCard(children: [
+                _InfoRow(icon: Icons.person, label: 'Usuário', value: widget.service.username),
+                const Divider(color: Color(0xFF2A2A2A), height: 24),
+                _InfoRow(icon: Icons.dns_rounded, label: 'Servidor', value: XtreamService.baseUrl),
+              ]),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
+              const Text('Lista M3U adicional', style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const SizedBox(height: 8),
 
-              _TvFocusButton(
-                onTap: _savingM3u ? null : _saveM3u,
-                child: _savingM3u
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Text(
-                        'Salvar lista M3U',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-              ),
-            ]),
-
-            const SizedBox(height: 16),
-            const Text('Player', style: TextStyle(color: Colors.grey, fontSize: 13)),
-            const SizedBox(height: 8),
-
-            _SectionCard(children: [
-              for (var i = 0; i < PlayerPrefs.options.length; i++) ...[
-                if (i > 0) const Divider(color: Color(0xFF2A2A2A), height: 16),
-                _PlayerOption(
-                  label: PlayerPrefs.options[i].$2,
-                  selected: _player == PlayerPrefs.options[i].$1,
-                  onTap: () => _setPlayer(PlayerPrefs.options[i].$1),
+              _SectionCard(children: [
+                const Text(
+                  'Cole a URL de uma lista M3U para adicionar canais extras na aba TV Ao Vivo.',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
                 ),
-              ],
-            ]),
+                const SizedBox(height: 12),
 
-            const SizedBox(height: 16),
+                // Campo M3U com foco melhorado
+                _TvTextField(
+                  controller: _m3uCtrl,
+                  focusNode: _m3uFocus,
+                  hint: 'http://servidor.com/lista.m3u',
+                  onChanged: (_) => setState(() {}),
+                ),
 
-            _SectionCard(children: [
-              _ActionRow(
-                icon: Icons.sync_rounded,
-                label: _refreshing ? 'Atualizando...' : 'Atualizar conteúdos',
-                color: Colors.white,
-                onTap: _refreshing ? null : _refreshContent,
-              ),
-              const Divider(color: Color(0xFF2A2A2A), height: 24),
-              _ActionRow(
-                icon: Icons.cleaning_services_rounded,
-                label: 'Limpar cache',
-                color: Colors.white,
-                onTap: _clearCache,
-              ),
-              const Divider(color: Color(0xFF2A2A2A), height: 24),
-              _ActionRow(
-                icon: Icons.logout_rounded,
-                label: 'Sair da conta',
-                color: _kRed,
-                onTap: _confirmLogout,
-              ),
-            ]),
+                const SizedBox(height: 12),
 
-            const SizedBox(height: 24),
-            const Center(
-              child: Text('DreamServer IPTV', style: TextStyle(color: Colors.grey, fontSize: 12)),
-            ),
-          ],
+                _TvFocusButton(
+                  onTap: _savingM3u ? null : _saveM3u,
+                  child: _savingM3u
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Salvar lista M3U',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                ),
+              ]),
+
+              const SizedBox(height: 16),
+              const Text('Player', style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const SizedBox(height: 8),
+
+              _SectionCard(children: [
+                for (var i = 0; i < PlayerPrefs.options.length; i++) ...[
+                  if (i > 0) const Divider(color: Color(0xFF2A2A2A), height: 16),
+                  _PlayerOption(
+                    label: PlayerPrefs.options[i].$2,
+                    selected: _player == PlayerPrefs.options[i].$1,
+                    onTap: () => _setPlayer(PlayerPrefs.options[i].$1),
+                  ),
+                ],
+              ]),
+
+              const SizedBox(height: 16),
+
+              _SectionCard(children: [
+                _ActionRow(
+                  icon: Icons.sync_rounded,
+                  label: _refreshing ? 'Atualizando...' : 'Atualizar conteúdos',
+                  color: Colors.white,
+                  onTap: _refreshing ? null : _refreshContent,
+                ),
+                const Divider(color: Color(0xFF2A2A2A), height: 24),
+                _ActionRow(
+                  icon: Icons.cleaning_services_rounded,
+                  label: 'Limpar cache',
+                  color: Colors.white,
+                  onTap: _clearCache,
+                ),
+                const Divider(color: Color(0xFF2A2A2A), height: 24),
+                _ActionRow(
+                  icon: Icons.logout_rounded,
+                  label: 'Sair da conta',
+                  color: _kRed,
+                  onTap: _confirmLogout,
+                ),
+              ]),
+
+              const SizedBox(height: 24),
+              const Center(
+                child: Text('DreamServer IPTV', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -351,9 +354,12 @@ class _TvFocusButton extends StatefulWidget {
 }
 
 class _TvFocusButtonState extends State<_TvFocusButton> {
+  bool _focused = false;
+
   @override
   Widget build(BuildContext context) {
     return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||
@@ -367,26 +373,26 @@ class _TvFocusButtonState extends State<_TvFocusButton> {
       },
       child: Builder(
         builder: (context) {
-          final hasFocus = Focus.of(context).hasFocus;
+          final hasFocus = _focused;
 
           return GestureDetector(
             onTap: widget.onTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
                 color: hasFocus ? Colors.white24 : _kRed,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: hasFocus ? Colors.white : Colors.transparent,
-                  width: 2.5,
+                  width: 3,
                 ),
                 boxShadow: hasFocus
                     ? [
                         const BoxShadow(
                           color: Colors.white30,
-                          blurRadius: 10,
+                          blurRadius: 12,
                           spreadRadius: 1,
                         )
                       ]
@@ -421,9 +427,12 @@ class _PlayerOption extends StatefulWidget {
 }
 
 class _PlayerOptionState extends State<_PlayerOption> {
+  bool _focused = false;
+
   @override
   Widget build(BuildContext context) {
     return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||
@@ -436,13 +445,13 @@ class _PlayerOptionState extends State<_PlayerOption> {
       },
       child: Builder(
         builder: (context) {
-          final hasFocus = Focus.of(context).hasFocus;
+          final hasFocus = _focused;
 
           return GestureDetector(
             onTap: widget.onTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
               decoration: BoxDecoration(
                 color: hasFocus ? Colors.white12 : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
@@ -467,6 +476,10 @@ class _PlayerOptionState extends State<_PlayerOption> {
                       fontWeight: widget.selected ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
+                  if (hasFocus) ...[
+                    const Spacer(),
+                    Icon(Icons.chevron_right, color: Colors.white54, size: 20),
+                  ],
                 ],
               ),
             ),
@@ -552,9 +565,12 @@ class _ActionRow extends StatefulWidget {
 }
 
 class _ActionRowState extends State<_ActionRow> {
+  bool _focused = false;
+
   @override
   Widget build(BuildContext context) {
     return Focus(
+      onFocusChange: (v) => setState(() => _focused = v),
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||
@@ -567,13 +583,13 @@ class _ActionRowState extends State<_ActionRow> {
       },
       child: Builder(
         builder: (context) {
-          final hasFocus = Focus.of(context).hasFocus;
+          final hasFocus = _focused;
 
           return GestureDetector(
             onTap: widget.onTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
               decoration: BoxDecoration(
                 color: hasFocus ? Colors.white12 : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
@@ -594,6 +610,10 @@ class _ActionRowState extends State<_ActionRow> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  if (hasFocus) ...[
+                    const Spacer(),
+                    Icon(Icons.chevron_right, color: Colors.white54, size: 20),
+                  ],
                 ],
               ),
             ),
