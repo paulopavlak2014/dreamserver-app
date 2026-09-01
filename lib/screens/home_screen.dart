@@ -33,8 +33,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final _contentFocusNode = FocusScopeNode();
 
   // Globals keys to request focus on grid when tab activates
-  final GlobalKey<MoviesScreenState> _moviesKey = GlobalKey<MoviesScreenState>();
-  final GlobalKey<SeriesScreenState> _seriesKey = GlobalKey<SeriesScreenState>();
+  final GlobalKey<_MoviesScreenState> _moviesKey = GlobalKey<_MoviesScreenState>();
+  final GlobalKey<_SeriesScreenState> _seriesKey = GlobalKey<_SeriesScreenState>();
 
   static const _navItems = [
     _NavItem(Icons.home_rounded,          'Início'),
