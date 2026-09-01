@@ -33,8 +33,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final _contentFocusNode = FocusScopeNode();
 
   // Globals keys to request focus on grid when tab activates
-  final GlobalKey<_MoviesScreenState> _moviesKey = GlobalKey<_MoviesScreenState>();
-  final GlobalKey<_SeriesScreenState> _seriesKey = GlobalKey<_SeriesScreenState>();
+  final GlobalKey<HomePageState> _homeKey = GlobalKey<HomePageState>();
+  final GlobalKey<MoviesScreenState> _moviesKey = GlobalKey<MoviesScreenState>();
+  final GlobalKey<SeriesScreenState> _seriesKey = GlobalKey<SeriesScreenState>();
 
   static const _navItems = [
     _NavItem(Icons.home_rounded,          'Início'),
@@ -71,6 +72,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // Foca no grid da aba atual
     WidgetsBinding.instance.addPostFrameCallback((_) {
       switch (_lastTab) {
+        case 0: // Home
+          _homeKey.currentState?.focusFirst();
+          break;
         case 3: // Movies
           _moviesKey.currentState?.focusGrid();
           break;
@@ -151,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: IndexedStack(
               index: _tab,
               children: [
-                _HomePage(service: widget.service),
+                _HomePage(key: _homeKey, service: widget.service),
                 LiveScreen(service: widget.service),
                 EpgScreen(service: widget.service),
                 MoviesScreen(key: const ValueKey('movies'), service: widget.service),
@@ -238,17 +242,18 @@ class _SidebarItemState extends State<_SidebarItem> {
 // ── Home Page ────────────────────────────────────────────────────────────────
 class _HomePage extends StatefulWidget {
   final XtreamService service;
-  const _HomePage({required this.service});
+  const _HomePage({super.key, required this.service});
   @override
-  State<_HomePage> createState() => _HomePageState();
+  State<_HomePage> createState() => HomePageState();
 }
 
-class _HomePageState extends State<_HomePage> {
+class HomePageState extends State<_HomePage> {
   List<Channel> _live = [];
   List<Movie> _movies = [];
   bool _loading = true;
   int _bannerIndex = 0;
   final _pageCtrl = PageController();
+  final _firstChannelFocus = FocusNode();
 
   @override
   void initState() { super.initState(); _load(); }
@@ -263,20 +268,23 @@ class _HomePageState extends State<_HomePage> {
       _movies = r[1] as List<Movie>;
       _loading = false;
     });
-    // Foca no primeiro canal ao carregar
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _live.isNotEmpty) {
         _firstChannelFocus.requestFocus();
       }
     });
-    ;
   }
 
   @override
-  void dispose() { _pageCtrl.dispose(); super.dispose(); }
+  void dispose() { _pageCtrl.dispose(); _firstChannelFocus.dispose(); super.dispose(); }
 
-  // FocusNode para o primeiro canal
-  final _firstChannelFocus = FocusNode();
+  /// Foca no primeiro canal da home (chamado ao trocar de aba)
+  void focusFirst() {
+    if (_loading || _live.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _firstChannelFocus.requestFocus();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -296,7 +304,7 @@ class _HomePageState extends State<_HomePage> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           itemCount: _live.take(10).length,
           itemBuilder: (_, i) => _ChannelCard(channel: _live[i], service: widget.service,
-              firstChannelFocus: _firstChannelFocus, index: i),
+              focusNode: i == 0 ? _firstChannelFocus : null),
         ))),
       ],
       if (_movies.isNotEmpty) ...[
@@ -433,10 +441,9 @@ class _SectionHeader extends StatelessWidget {
 class _ChannelCard extends StatefulWidget {
   final Channel channel;
   final XtreamService service;
-  final FocusNode firstChannelFocus;
-  final int index;
+  final FocusNode? focusNode;
 
-  const _ChannelCard({required this.channel, required this.service, required this.firstChannelFocus, required this.index});
+  const _ChannelCard({required this.channel, required this.service, this.focusNode});
 
   @override
   State<_ChannelCard> createState() => _ChannelCardState();
@@ -446,31 +453,20 @@ class _ChannelCardState extends State<_ChannelCard> {
   bool _focused = false;
 
   @override
-  void initState() {
-    super.initState();
-    // Apenas o primeiro canal (índice 0) recebe foco inicial
-    if (widget.index == 0 && widget.firstChannelFocus != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) widget.firstChannelFocus.requestFocus();
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Focus(
-      onFocusChange: (v) => setState(() => _focused = v),
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.select ||
-             event.logicalKey == LogicalKeyboardKey.enter)) {
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => PlayerScreen(title: widget.channel.name, url: widget.channel.streamUrl,
-                channelLogo: widget.channel.logo, channelId: widget.channel.id, service: widget.service),
-          ));
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
+    return FocusableActionDetector(
+      focusNode: widget.focusNode,
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => PlayerScreen(title: widget.channel.name, url: widget.channel.streamUrl,
+                  channelLogo: widget.channel.logo, channelId: widget.channel.id, service: widget.service),
+            ));
+            return null;
+          },
+        ),
       },
       child: GestureDetector(
         onTap: () => Navigator.push(context, MaterialPageRoute(
@@ -529,18 +525,17 @@ class _MovieCardState extends State<_MovieCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      onFocusChange: (v) => setState(() => _focused = v),
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.select ||
-             event.logicalKey == LogicalKeyboardKey.enter)) {
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => PlayerScreen(title: widget.movie.name, url: widget.movie.streamUrl),
-          ));
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
+    return FocusableActionDetector(
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => PlayerScreen(title: widget.movie.name, url: widget.movie.streamUrl),
+            ));
+            return null;
+          },
+        ),
       },
       child: GestureDetector(
         onTap: () => Navigator.push(context, MaterialPageRoute(
