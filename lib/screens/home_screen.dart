@@ -97,73 +97,91 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Row(children: [
 
         // ── Menu lateral com seu próprio FocusScope ──
-        FocusScope(
-          node: _sidebarFocusNode,
-          onKeyEvent: (node, event) {
-            // Seta direita: vai para o conteúdo
-            if (event is KeyDownEvent &&
-                event.logicalKey == LogicalKeyboardKey.arrowRight) {
-              _goToContent();
-              return KeyEventResult.handled;
-            }
-            return KeyEventResult.ignored;
-          },
-          child: Container(
-            width: 64,
-            color: const Color(0xFF0F0F0F),
-            child: Column(children: [
-              const SizedBox(height: 16),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 10),
-                child: Icon(Icons.play_circle_filled, color: kRed, size: 26),
-              ),
-              const Divider(color: Colors.white12, height: 16),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _navItems.length,
-                  itemBuilder: (_, i) {
-                    final item = _navItems[i];
-                    return _SidebarItem(
-                      icon: item.icon,
-                      label: item.label,
-                      selected: _tab == i,
-                      onTap: () {
-                        setState(() => _tab = i);
-                        _goToContent();
-                      },
-                    );
-                  },
-                ),
-              ),
-            ]),
-          ),
-        ),
-
-        // ── Conteúdo com seu próprio FocusScope ──
-        Expanded(
+        FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
           child: FocusScope(
-            node: _contentFocusNode,
+            node: _sidebarFocusNode,
             onKeyEvent: (node, event) {
+              // Seta direita: vai para o conteúdo
               if (event is KeyDownEvent &&
-                  event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-                if (_sidebarFocused) return KeyEventResult.ignored;
-                _goToSidebar();
+                  event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                _goToContent();
                 return KeyEventResult.handled;
               }
               return KeyEventResult.ignored;
             },
-            child: IndexedStack(
-              index: _tab,
-              children: [
-                _HomePage(key: _homeKey, service: widget.service),
-                LiveScreen(service: widget.service),
-                EpgScreen(service: widget.service),
-                MoviesScreen(key: const ValueKey('movies'), service: widget.service),
-                SeriesScreen(key: const ValueKey('series'), service: widget.service),
-                const SportsScreen(),
-                const FavoritesScreen(),
-                SettingsScreen(key: const ValueKey('settings'), service: widget.service),
-              ],
+            child: Container(
+              width: 64,
+              color: const Color(0xFF0F0F0F),
+              child: Column(children: [
+                const SizedBox(height: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  child: Icon(Icons.play_circle_filled, color: kRed, size: 26),
+                ),
+                const Divider(color: Colors.white12, height: 16),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _navItems.length,
+                    itemBuilder: (_, i) {
+                      final item = _navItems[i];
+                      return _SidebarItem(
+                        icon: item.icon,
+                        label: item.label,
+                        selected: _tab == i,
+                        onTap: () {
+                          setState(() => _tab = i);
+                          _goToContent();
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
+
+        // ── Conteúdo com seu próprio FocusScope ──
+        FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: Expanded(
+            child: FocusScope(
+              node: _contentFocusNode,
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent) {
+                  final key = event.logicalKey;
+                  // Volta pro menu lateral apenas com seta ESQUERDA na borda
+                  if (key == LogicalKeyboardKey.arrowLeft) {
+                    if (_sidebarFocused) return KeyEventResult.ignored;
+                    _goToSidebar();
+                    return KeyEventResult.handled;
+                  }
+                  // Não deixa setas para cima/baixo saírem do conteúdo
+                  if (key == LogicalKeyboardKey.arrowDown ||
+                      key == LogicalKeyboardKey.arrowUp) {
+                    // Se nenhum filho consumiu, impede o foco de ir pro sidebar
+                    if (node.hasPrimaryFocus) {
+                      return KeyEventResult.handled;
+                    }
+                    return KeyEventResult.ignored;
+                  }
+                }
+                return KeyEventResult.ignored;
+              },
+              child: IndexedStack(
+                index: _tab,
+                children: [
+                  _HomePage(key: _homeKey, service: widget.service),
+                  LiveScreen(service: widget.service),
+                  EpgScreen(service: widget.service),
+                  MoviesScreen(key: const ValueKey('movies'), service: widget.service),
+                  SeriesScreen(key: const ValueKey('series'), service: widget.service),
+                  const SportsScreen(),
+                  const FavoritesScreen(),
+                  SettingsScreen(key: const ValueKey('settings'), service: widget.service),
+                ],
+              ),
             ),
           ),
         ),
