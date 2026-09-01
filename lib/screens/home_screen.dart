@@ -487,6 +487,7 @@ class HomePageState extends State<_HomePage> {
   }
 }
 class _TopBar extends StatelessWidget {
+  const _TopBar();
   @override
   Widget build(BuildContext context) {
     return Padding(
