@@ -33,7 +33,7 @@ class XtreamService {
   }
 
   // ── Cache em disco (30 min) ───────────────────────────────────────────────
-  static const _cacheTtl = Duration(minutes: 30);
+  static const _cacheTtl = Duration(hours: 6);
 
   Future<String?> _getCached(String key) async {
     try {

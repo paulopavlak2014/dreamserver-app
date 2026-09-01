@@ -24,13 +24,8 @@ class _MoviesScreenState extends State<MoviesScreen> {
   bool _loading = true;
   final _searchCtrl = TextEditingController();
 
-  // Índice focado no grid (-1 = nenhum)
   int _focusedIndex = -1;
-
-  // Mapa de índice → FocusNode
   final Map<int, FocusNode> _focusNodes = {};
-
-  // Número de colunas atual (calculado no build)
   int _columnCount = 4;
 
   @override
@@ -63,7 +58,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    // Limpa focus nodes ao recarregar
+
     for (final node in _focusNodes.values) {
       node.dispose();
     }
@@ -74,16 +69,20 @@ class _MoviesScreenState extends State<MoviesScreen> {
       widget.service.getMovies(),
       widget.service.getVodCategories(),
     ]);
+
     if (!mounted) return;
+
     setState(() {
       _all = results[0] as List<Movie>;
       _categories = results[1] as List<Category>;
       _loading = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _filtered.isNotEmpty) {
-          _moveFocus(0, _filtered);
-  }
-});
+    });
+
+    // Foca no primeiro filme automaticamente
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _filtered.isNotEmpty) {
+        _moveFocus(0, _filtered);
+      }
     });
   }
 
@@ -98,18 +97,15 @@ class _MoviesScreenState extends State<MoviesScreen> {
     return list;
   }
 
-  /// Calcula quantas colunas cabem com maxCrossAxisExtent=110
   int _calcColumns(double width) {
     final padding = 12.0 * 2;
     final available = width - padding;
     return (available / (110 + 10)).floor().clamp(1, 999);
   }
 
-  // Move foco para [newIndex], retorna true se conseguiu
   bool _moveFocus(int newIndex, List<Movie> items) {
     if (newIndex < 0 || newIndex >= items.length) return false;
     setState(() => _focusedIndex = newIndex);
-    // Solicita foco no próximo frame (o node precisa existir no tree)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final node = _nodeFor(newIndex);
       if (node.context != null) node.requestFocus();
@@ -124,18 +120,16 @@ class _MoviesScreenState extends State<MoviesScreen> {
     final cols = _columnCount;
 
     if (key == LogicalKeyboardKey.arrowRight) {
-      // Último da linha → para aí (não volta para menu)
-      if ((index + 1) % cols == 0 || index + 1 >= items.length) {
-        return KeyEventResult.handled; // bloqueia, não faz nada
+      if (index + 1 < items.length) {
+        _moveFocus(index + 1, items);
       }
-      _moveFocus(index + 1, items);
       return KeyEventResult.handled;
     }
 
     if (key == LogicalKeyboardKey.arrowLeft) {
-      // Primeiro da linha → volta para menu lateral
       if (index % cols == 0) {
-        return KeyEventResult.ignored; // deixa o Flutter navegar para o menu
+        // Primeira coluna → deixa ir para o menu lateral
+        return KeyEventResult.ignored;
       }
       _moveFocus(index - 1, items);
       return KeyEventResult.handled;
@@ -143,14 +137,16 @@ class _MoviesScreenState extends State<MoviesScreen> {
 
     if (key == LogicalKeyboardKey.arrowDown) {
       final next = index + cols;
-      if (next >= items.length) return KeyEventResult.handled; // bloqueia saída
-      _moveFocus(next, items);
+      if (next < items.length) {
+        _moveFocus(next, items);
+      }
       return KeyEventResult.handled;
     }
 
     if (key == LogicalKeyboardKey.arrowUp) {
-      if (index < cols) return KeyEventResult.handled; // primeira linha → bloqueia
-      _moveFocus(index - cols, items);
+      if (index >= cols) {
+        _moveFocus(index - cols, items);
+      }
       return KeyEventResult.handled;
     }
 
@@ -168,20 +164,19 @@ class _MoviesScreenState extends State<MoviesScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
-
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Row(children: [
                 Container(
-                  width: 3, height: 16,
+                  width: 3,
+                  height: 16,
                   decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(2)),
                 ),
                 const SizedBox(width: 8),
                 const Text('Filmes',
                     style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                 const Spacer(),
-                Text('${items.length} filmes',
-                    style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                Text('${items.length} filmes', style: const TextStyle(color: Colors.grey, fontSize: 11)),
                 IconButton(
                   icon: const Icon(Icons.refresh, color: Colors.grey, size: 20),
                   onPressed: _load,
@@ -189,7 +184,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
                 ),
               ]),
             ),
-
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: TextField(
@@ -207,7 +201,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
                 ),
               ),
             ),
-
             if (_categories.isNotEmpty)
               SizedBox(
                 height: 38,
@@ -228,6 +221,9 @@ class _MoviesScreenState extends State<MoviesScreen> {
                         onSelected: (_) => setState(() {
                           _selectedCat = isAll ? '' : cat!.id;
                           _focusedIndex = -1;
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (_filtered.isNotEmpty) _moveFocus(0, _filtered);
+                          });
                         }),
                         selectedColor: _kRed,
                         backgroundColor: const Color(0xFF1E1E1E),
@@ -239,26 +235,18 @@ class _MoviesScreenState extends State<MoviesScreen> {
                   },
                 ),
               ),
-
             const SizedBox(height: 8),
-
             Expanded(
               child: _loading
                   ? const Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         CircularProgressIndicator(color: _kRed),
                         SizedBox(height: 16),
-                        Text('Carregando filmes...',
-                            style: TextStyle(color: Colors.grey, fontSize: 12)),
-                        SizedBox(height: 4),
-                        Text('Pode levar alguns instantes',
-                            style: TextStyle(color: Colors.white24, fontSize: 11)),
+                        Text('Carregando filmes...', style: TextStyle(color: Colors.grey, fontSize: 12)),
                       ]),
                     )
                   : items.isEmpty
-                      ? const Center(
-                          child: Text('Nenhum filme encontrado',
-                              style: TextStyle(color: Colors.grey)))
+                      ? const Center(child: Text('Nenhum filme encontrado', style: TextStyle(color: Colors.grey)))
                       : GridView.builder(
                           padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -274,9 +262,7 @@ class _MoviesScreenState extends State<MoviesScreen> {
                             focusNode: _nodeFor(i),
                             isFocused: _focusedIndex == i,
                             onFocusChange: (focused) {
-                              if (focused) {
-                                setState(() => _focusedIndex = i);
-                              }
+                              if (focused) setState(() => _focusedIndex = i);
                             },
                             onKeyEvent: (event) => _handleGridKey(event, i, items),
                           ),
@@ -345,14 +331,13 @@ class _MovieTileState extends State<_MovieTile> {
       focusNode: widget.focusNode,
       onFocusChange: widget.onFocusChange,
       onKeyEvent: (node, event) {
-        // Enter/Select → abre player
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||
-             event.logicalKey == LogicalKeyboardKey.enter)) {
+             event.logicalKey == LogicalKeyboardKey.enter ||
+             event.logicalKey == LogicalKeyboardKey.space)) {
           _openPlayer(context);
           return KeyEventResult.handled;
         }
-        // Setas → controladas pelo pai (grid)
         return widget.onKeyEvent(event);
       },
       child: GestureDetector(
@@ -365,13 +350,17 @@ class _MovieTileState extends State<_MovieTile> {
               color: focused ? Colors.white : Colors.transparent,
               width: 3,
             ),
+            boxShadow: focused
+                ? [const BoxShadow(color: Colors.white38, blurRadius: 8, spreadRadius: 1)]
+                : null,
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: Stack(fit: StackFit.expand, children: [
               m.cover != null
                   ? CachedNetworkImage(
-                      imageUrl: m.cover!, fit: BoxFit.cover,
+                      imageUrl: m.cover!,
+                      fit: BoxFit.cover,
                       errorWidget: (_, __, ___) => Container(
                         color: const Color(0xFF1A1A1A),
                         child: const Icon(Icons.movie, color: Colors.grey, size: 32),
@@ -379,12 +368,10 @@ class _MovieTileState extends State<_MovieTile> {
                   : Container(
                       color: const Color(0xFF1A1A1A),
                       child: const Icon(Icons.movie, color: Colors.grey, size: 32)),
-
-              if (focused)
-                Container(color: Colors.white10),
-
+              if (focused) Container(color: Colors.white10),
               Positioned(
-                top: 4, right: 4,
+                top: 4,
+                right: 4,
                 child: GestureDetector(
                   onTap: _toggleFav,
                   child: Container(
@@ -401,20 +388,23 @@ class _MovieTileState extends State<_MovieTile> {
                   ),
                 ),
               ),
-
               Positioned(
-                bottom: 0, left: 0, right: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
                 child: Container(
                   padding: const EdgeInsets.all(5),
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
                       colors: [Colors.black87, Colors.transparent],
                     ),
                   ),
                   child: Text(m.name,
                       style: const TextStyle(color: Colors.white, fontSize: 10),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
                 ),
               ),
             ]),

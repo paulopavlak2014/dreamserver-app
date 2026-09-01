@@ -24,13 +24,8 @@ class _SeriesScreenState extends State<SeriesScreen> {
   bool _loading = true;
   final _searchCtrl = TextEditingController();
 
-  // Índice focado no grid (-1 = nenhum)
   int _focusedIndex = -1;
-
-  // Mapa de índice → FocusNode
   final Map<int, FocusNode> _focusNodes = {};
-
-  // Número de colunas atual (calculado no build)
   int _columnCount = 4;
 
   @override
@@ -63,6 +58,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
+
     for (final node in _focusNodes.values) {
       node.dispose();
     }
@@ -73,16 +69,20 @@ class _SeriesScreenState extends State<SeriesScreen> {
       widget.service.getSeries(),
       widget.service.getSeriesCategories(),
     ]);
+
     if (!mounted) return;
+
     setState(() {
       _all = results[0] as List<Series>;
       _categories = results[1] as List<Category>;
       _loading = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _filtered.isNotEmpty) {
-          _moveFocus(0, _filtered);
-  }
-});
+    });
+
+    // Foca no primeiro item automaticamente
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _filtered.isNotEmpty) {
+        _moveFocus(0, _filtered);
+      }
     });
   }
 
@@ -120,16 +120,16 @@ class _SeriesScreenState extends State<SeriesScreen> {
     final cols = _columnCount;
 
     if (key == LogicalKeyboardKey.arrowRight) {
-      if ((index + 1) % cols == 0 || index + 1 >= items.length) {
-        return KeyEventResult.handled; // fim da linha, bloqueia
+      if (index + 1 < items.length) {
+        _moveFocus(index + 1, items);
       }
-      _moveFocus(index + 1, items);
       return KeyEventResult.handled;
     }
 
     if (key == LogicalKeyboardKey.arrowLeft) {
       if (index % cols == 0) {
-        return KeyEventResult.ignored; // primeiro da linha → vai para menu
+        // Primeira coluna → deixa ir para o menu lateral
+        return KeyEventResult.ignored;
       }
       _moveFocus(index - 1, items);
       return KeyEventResult.handled;
@@ -137,14 +137,16 @@ class _SeriesScreenState extends State<SeriesScreen> {
 
     if (key == LogicalKeyboardKey.arrowDown) {
       final next = index + cols;
-      if (next >= items.length) return KeyEventResult.handled; // bloqueia saída
-      _moveFocus(next, items);
+      if (next < items.length) {
+        _moveFocus(next, items);
+      }
       return KeyEventResult.handled;
     }
 
     if (key == LogicalKeyboardKey.arrowUp) {
-      if (index < cols) return KeyEventResult.handled; // primeira linha → bloqueia
-      _moveFocus(index - cols, items);
+      if (index >= cols) {
+        _moveFocus(index - cols, items);
+      }
       return KeyEventResult.handled;
     }
 
@@ -187,6 +189,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
     }
 
     if (!mounted) return;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
@@ -250,20 +253,19 @@ class _SeriesScreenState extends State<SeriesScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
-
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Row(children: [
                 Container(
-                  width: 3, height: 16,
+                  width: 3,
+                  height: 16,
                   decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(2)),
                 ),
                 const SizedBox(width: 8),
                 const Text('Séries',
                     style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                 const Spacer(),
-                Text('${items.length} séries',
-                    style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                Text('${items.length} séries', style: const TextStyle(color: Colors.grey, fontSize: 11)),
                 IconButton(
                   icon: const Icon(Icons.refresh, color: Colors.grey, size: 20),
                   onPressed: _load,
@@ -271,7 +273,6 @@ class _SeriesScreenState extends State<SeriesScreen> {
                 ),
               ]),
             ),
-
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: TextField(
@@ -289,7 +290,6 @@ class _SeriesScreenState extends State<SeriesScreen> {
                 ),
               ),
             ),
-
             if (_categories.isNotEmpty)
               SizedBox(
                 height: 38,
@@ -305,12 +305,14 @@ class _SeriesScreenState extends State<SeriesScreen> {
                       padding: const EdgeInsets.only(right: 6),
                       child: ChoiceChip(
                         label: Text(isAll ? 'Todos' : cat!.name,
-                            style: TextStyle(
-                                color: active ? Colors.white : Colors.grey, fontSize: 11)),
+                            style: TextStyle(color: active ? Colors.white : Colors.grey, fontSize: 11)),
                         selected: active,
                         onSelected: (_) => setState(() {
                           _selectedCat = isAll ? '' : cat!.id;
                           _focusedIndex = -1;
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (_filtered.isNotEmpty) _moveFocus(0, _filtered);
+                          });
                         }),
                         selectedColor: _kRed,
                         backgroundColor: const Color(0xFF1E1E1E),
@@ -322,26 +324,18 @@ class _SeriesScreenState extends State<SeriesScreen> {
                   },
                 ),
               ),
-
             const SizedBox(height: 8),
-
             Expanded(
               child: _loading
                   ? const Center(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         CircularProgressIndicator(color: _kRed),
                         SizedBox(height: 16),
-                        Text('Carregando séries...',
-                            style: TextStyle(color: Colors.grey, fontSize: 12)),
-                        SizedBox(height: 4),
-                        Text('Pode levar alguns instantes',
-                            style: TextStyle(color: Colors.white24, fontSize: 11)),
+                        Text('Carregando séries...', style: TextStyle(color: Colors.grey, fontSize: 12)),
                       ]),
                     )
                   : items.isEmpty
-                      ? const Center(
-                          child: Text('Nenhuma série encontrada',
-                              style: TextStyle(color: Colors.grey)))
+                      ? const Center(child: Text('Nenhuma série encontrada', style: TextStyle(color: Colors.grey)))
                       : GridView.builder(
                           padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -371,12 +365,12 @@ class _SeriesScreenState extends State<SeriesScreen> {
   }
 }
 
-// ── Episode tile com foco TV ────────────────────────────────────────────────
-
+// ── Episode tile ────────────────────────────────────────────────────────────
 class _EpisodeTile extends StatefulWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+
   const _EpisodeTile({required this.title, required this.subtitle, required this.onTap});
 
   @override
@@ -417,8 +411,7 @@ class _EpisodeTileState extends State<_EpisodeTile> {
   }
 }
 
-// ── Series tile com foco TV ─────────────────────────────────────────────────
-
+// ── Series tile ─────────────────────────────────────────────────────────────
 class _SeriesTile extends StatefulWidget {
   final Series series;
   final FocusNode focusNode;
@@ -474,7 +467,8 @@ class _SeriesTileState extends State<_SeriesTile> {
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||
-             event.logicalKey == LogicalKeyboardKey.enter)) {
+             event.logicalKey == LogicalKeyboardKey.enter ||
+             event.logicalKey == LogicalKeyboardKey.space)) {
           widget.onOpen();
           return KeyEventResult.handled;
         }
@@ -490,13 +484,17 @@ class _SeriesTileState extends State<_SeriesTile> {
               color: focused ? Colors.white : Colors.transparent,
               width: 3,
             ),
+            boxShadow: focused
+                ? [const BoxShadow(color: Colors.white38, blurRadius: 8, spreadRadius: 1)]
+                : null,
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: Stack(fit: StackFit.expand, children: [
               s.cover != null
                   ? CachedNetworkImage(
-                      imageUrl: s.cover!, fit: BoxFit.cover,
+                      imageUrl: s.cover!,
+                      fit: BoxFit.cover,
                       errorWidget: (_, __, ___) => Container(
                         color: const Color(0xFF1A1A1A),
                         child: const Icon(Icons.tv, color: Colors.grey, size: 32),
@@ -504,12 +502,10 @@ class _SeriesTileState extends State<_SeriesTile> {
                   : Container(
                       color: const Color(0xFF1A1A1A),
                       child: const Icon(Icons.tv, color: Colors.grey, size: 32)),
-
-              if (focused)
-                Container(color: Colors.white10),
-
+              if (focused) Container(color: Colors.white10),
               Positioned(
-                top: 4, right: 4,
+                top: 4,
+                right: 4,
                 child: GestureDetector(
                   onTap: _toggleFav,
                   child: Container(
@@ -526,20 +522,23 @@ class _SeriesTileState extends State<_SeriesTile> {
                   ),
                 ),
               ),
-
               Positioned(
-                bottom: 0, left: 0, right: 0,
+                bottom: 0,
+                left: 0,
+                right: 0,
                 child: Container(
                   padding: const EdgeInsets.all(5),
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
                       colors: [Colors.black87, Colors.transparent],
                     ),
                   ),
                   child: Text(s.name,
                       style: const TextStyle(color: Colors.white, fontSize: 10),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
                 ),
               ),
             ]),
