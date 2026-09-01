@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/xtream_service.dart';
 import '../models/channel.dart';
@@ -184,7 +185,6 @@ class _SidebarItemState extends State<_SidebarItem> {
       preferBelow: false,
       child: FocusableActionDetector(
         onShowFocusHighlight: (v) => setState(() => _focused = v),
-        onShowMainFocus: (v) => setState(() => _focused = v),
         actions: {
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (_) { widget.onTap(); return null; },
