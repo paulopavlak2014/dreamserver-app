@@ -32,6 +32,10 @@ class _HomeScreenState extends State<HomeScreen> {
   final _sidebarFocusNode = FocusScopeNode();
   final _contentFocusNode = FocusScopeNode();
 
+  // Globals keys to request focus on grid when tab activates
+  final GlobalKey<MoviesScreenState> _moviesKey = GlobalKey<MoviesScreenState>();
+  final GlobalKey<SeriesScreenState> _seriesKey = GlobalKey<SeriesScreenState>();
+
   static const _navItems = [
     _NavItem(Icons.home_rounded,          'Início'),
     _NavItem(Icons.live_tv_rounded,       'TV Ao Vivo'),
@@ -64,6 +68,17 @@ class _HomeScreenState extends State<HomeScreen> {
       _lastTab = _tab;
     });
     _contentFocusNode.requestFocus();
+    // Foca no grid da aba atual
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      switch (_lastTab) {
+        case 3: // Movies
+          _moviesKey.currentState?.focusGrid();
+          break;
+        case 4: // Series
+          _seriesKey.currentState?.focusGrid();
+          break;
+      }
+    });
   }
 
   void _goToSidebar() {

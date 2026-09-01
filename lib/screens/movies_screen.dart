@@ -47,6 +47,16 @@ class _MoviesScreenState extends State<MoviesScreen> {
     super.dispose();
   }
 
+  /// Chama este método para focar o primeiro item do grid (usado ao trocar de aba)
+  void focusGrid() {
+    _gridFocusNode.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _focusedIndex < 0) {
+        setState(() => _focusedIndex = 0);
+      }
+    });
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
 
