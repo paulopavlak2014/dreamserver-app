@@ -252,13 +252,13 @@ class _HomePage extends StatefulWidget {
 class HomePageState extends State<_HomePage> {
   List<Channel> _live = [];
   List<Movie> _movies = [];
+  List<Series> _series = [];
   bool _loading = true;
-  int _bannerIndex = 0;
-  final _pageCtrl = PageController();
   final _homeFocus = FocusNode();
   final _scrollCtrl = ScrollController();
   final _channelScroll = ScrollController();
   final _movieScroll = ScrollController();
+  final _seriesScroll = ScrollController();
 
   int _focusSection = 0;
   int _focusIndex = 0;
@@ -270,10 +270,12 @@ class HomePageState extends State<_HomePage> {
     final r = await Future.wait([
       widget.service.getLiveChannels(),
       widget.service.getMovies(),
+      widget.service.getSeries(),
     ]);
     if (mounted) setState(() {
       _live = r[0] as List<Channel>;
       _movies = r[1] as List<Movie>;
+      _series = r[2] as List<Series>;
       _loading = false;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -286,15 +288,14 @@ class HomePageState extends State<_HomePage> {
 
   @override
   void dispose() {
-    _pageCtrl.dispose();
     _homeFocus.dispose();
     _scrollCtrl.dispose();
     _channelScroll.dispose();
     _movieScroll.dispose();
+    _seriesScroll.dispose();
     super.dispose();
   }
 
-  /// Foca no primeiro canal da home (chamado ao trocar de aba)
   void focusFirst() {
     if (_loading || _live.isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -307,23 +308,23 @@ class HomePageState extends State<_HomePage> {
 
   int _channelCount() => _live.take(10).length;
   int _movieCount() => _movies.take(10).length;
+  int _seriesCount() => _series.take(10).length;
 
-  void _scrollChannelsToFocus() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final target = _focusIndex * 130.0;
-      if (_channelScroll.hasClients) {
-        _channelScroll.animateTo(target, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
-      }
-    });
+  int _sectionCount() {
+    if (_focusSection == 0) return _channelCount();
+    if (_focusSection == 1) return _movieCount();
+    return _seriesCount();
   }
 
-  void _scrollMoviesToFocus() {
+  void _scrollSectionToFocus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final target = _focusIndex * 105.0;
-      if (_movieScroll.hasClients) {
-        _movieScroll.animateTo(target, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      if (_focusSection == 0 && _channelScroll.hasClients) {
+        _channelScroll.animateTo(_focusIndex * 130.0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      } else if (_focusSection == 1 && _movieScroll.hasClients) {
+        _movieScroll.animateTo(_focusIndex * 105.0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      } else if (_focusSection == 2 && _seriesScroll.hasClients) {
+        _seriesScroll.animateTo(_focusIndex * 105.0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
       }
     });
   }
@@ -333,16 +334,9 @@ class HomePageState extends State<_HomePage> {
     final key = event.logicalKey;
 
     if (key == LogicalKeyboardKey.arrowRight) {
-      if (_focusSection == 0) {
-        if (_focusIndex + 1 < _channelCount()) {
-          setState(() => _focusIndex++);
-          _scrollChannelsToFocus();
-        }
-      } else {
-        if (_focusIndex + 1 < _movieCount()) {
-          setState(() => _focusIndex++);
-          _scrollMoviesToFocus();
-        }
+      if (_focusIndex + 1 < _sectionCount()) {
+        setState(() => _focusIndex++);
+        _scrollSectionToFocus();
       }
       return KeyEventResult.handled;
     }
@@ -352,25 +346,27 @@ class HomePageState extends State<_HomePage> {
         return KeyEventResult.ignored;
       }
       setState(() => _focusIndex--);
-      if (_focusSection == 0) { _scrollChannelsToFocus(); } else { _scrollMoviesToFocus(); }
+      _scrollSectionToFocus();
       return KeyEventResult.handled;
     }
 
     if (key == LogicalKeyboardKey.arrowDown) {
-      if (_focusSection == 0 && _movieCount() > 0) {
-        setState(() { _focusSection = 1; _focusIndex = 0; });
-        _scrollMoviesToFocus();
-      }
-      if (_focusSection == 1 && _focusIndex + 1 < _movieCount()) {
+      if (_focusSection < 2) {
+        final nextCount = _focusSection == 0 ? _movieCount() : _seriesCount();
+        if (nextCount > 0) {
+          setState(() { _focusSection++; _focusIndex = 0; });
+          _scrollSectionToFocus();
+        }
+      } else if (_focusIndex + 1 < _seriesCount()) {
         setState(() => _focusIndex++);
       }
       return KeyEventResult.handled;
     }
 
     if (key == LogicalKeyboardKey.arrowUp) {
-      if (_focusSection == 1) {
-        setState(() { _focusSection = 0; _focusIndex = 0; });
-        _scrollChannelsToFocus();
+      if (_focusSection > 0) {
+        setState(() { _focusSection--; _focusIndex = 0; });
+        _scrollSectionToFocus();
         return KeyEventResult.handled;
       }
       if (_focusSection == 0 && _focusIndex == 0) {
@@ -393,6 +389,11 @@ class HomePageState extends State<_HomePage> {
         Navigator.push(context, MaterialPageRoute(
           builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl),
         ));
+      } else if (_focusSection == 2 && _focusIndex < _seriesCount()) {
+        final s = _series[_focusIndex];
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => PlayerScreen(title: s.name, url: s.streamUrl),
+        ));
       }
       return KeyEventResult.handled;
     }
@@ -406,6 +407,7 @@ class HomePageState extends State<_HomePage> {
 
     final channels = _live.take(10).toList();
     final movies = _movies.take(10).toList();
+    final series = _series.take(10).toList();
 
     return Focus(
       focusNode: _homeFocus,
@@ -416,12 +418,6 @@ class HomePageState extends State<_HomePage> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const _TopBar(),
           if (channels.isNotEmpty) ...[
-            _Banner(
-              channels: channels.take(5).toList(), index: _bannerIndex,
-              controller: _pageCtrl,
-              onChanged: (i) => setState(() => _bannerIndex = i),
-              service: widget.service,
-            ),
             const _SectionHeader(title: 'Canais em Destaque'),
             SizedBox(
               height: 100,
@@ -445,7 +441,7 @@ class HomePageState extends State<_HomePage> {
             ),
           ],
           if (movies.isNotEmpty) ...[
-            const _SectionHeader(title: 'Filmes Populares'),
+            const _SectionHeader(title: 'Filmes Lançamentos'),
             SizedBox(
               height: 140,
               child: SingleChildScrollView(
@@ -463,8 +459,81 @@ class HomePageState extends State<_HomePage> {
               ),
             ),
           ],
+          if (series.isNotEmpty) ...[
+            const _SectionHeader(title: 'Séries Lançamentos'),
+            SizedBox(
+              height: 140,
+              child: SingleChildScrollView(
+                controller: _seriesScroll,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    for (var i = 0; i < series.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      _SeriesCard(series: series[i], isFocused: _focusSection == 2 && _focusIndex == i),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
         ]),
+      ),
+    );
+  }
+}
+
+class _SeriesCard extends StatefulWidget {
+  final Series series;
+  final bool isFocused;
+
+  const _SeriesCard({required this.series, required this.isFocused});
+
+  @override
+  State<_SeriesCard> createState() => _SeriesCardState();
+}
+
+class _SeriesCardState extends State<_SeriesCard> {
+  @override
+  Widget build(BuildContext context) {
+    final focused = widget.isFocused;
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(
+        builder: (_) => PlayerScreen(title: widget.series.name, url: widget.series.streamUrl),
+      )),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 95,
+        margin: const EdgeInsets.only(right: 8),
+        decoration: BoxDecoration(
+          color: kCard,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: focused ? Colors.white : Colors.transparent, width: 2),
+          boxShadow: focused ? [const BoxShadow(color: Colors.white38, blurRadius: 8, spreadRadius: 1)] : null,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Stack(fit: StackFit.expand, children: [
+            widget.series.cover != null
+                ? CachedNetworkImage(imageUrl: widget.series.cover!, fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Container(color: kSurface,
+                        child: const Icon(Icons.tv, color: Colors.grey)))
+                : Container(color: kSurface, child: const Icon(Icons.tv, color: Colors.grey)),
+            Positioned(bottom: 0, left: 0, right: 0, child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                    colors: [Colors.black, Colors.transparent]),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(10)),
+              ),
+              child: Text(widget.series.name,
+                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+            )),
+          ]),
+        ),
       ),
     );
   }
