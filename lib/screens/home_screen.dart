@@ -26,7 +26,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
-  // Controla se o foco está no menu lateral ou no conteúdo
+  int _lastTab = -1;
   bool _sidebarFocused = true;
 
   final _sidebarFocusNode = FocusScopeNode();
@@ -44,6 +44,14 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sidebarFocusNode.requestFocus();
+    });
+  }
+
+  @override
   void dispose() {
     _sidebarFocusNode.dispose();
     _contentFocusNode.dispose();
@@ -51,7 +59,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _goToContent() {
-    setState(() => _sidebarFocused = false);
+    setState(() {
+      _sidebarFocused = false;
+      _lastTab = _tab;
+    });
     _contentFocusNode.requestFocus();
   }
 
@@ -114,11 +125,9 @@ class _HomeScreenState extends State<HomeScreen> {
           child: FocusScope(
             node: _contentFocusNode,
             onKeyEvent: (node, event) {
-              // Seta esquerda na borda: volta pro menu lateral
               if (event is KeyDownEvent &&
                   event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-                // Só vai pro sidebar se não há filho que consuma o evento
-                if (!node.hasPrimaryFocus) return KeyEventResult.ignored;
+                if (_sidebarFocused) return KeyEventResult.ignored;
                 _goToSidebar();
                 return KeyEventResult.handled;
               }
@@ -130,11 +139,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 _HomePage(service: widget.service),
                 LiveScreen(service: widget.service),
                 EpgScreen(service: widget.service),
-                Focus(autofocus: true, child: MoviesScreen(service: widget.service)),
-                Focus(autofocus: true, child: SeriesScreen(service: widget.service)),
+                MoviesScreen(key: const ValueKey('movies'), service: widget.service),
+                SeriesScreen(key: const ValueKey('series'), service: widget.service),
                 const SportsScreen(),
                 const FavoritesScreen(),
-                Focus(autofocus: true, child: SettingsScreen(service: widget.service)),
+                SettingsScreen(key: const ValueKey('settings'), service: widget.service),
               ],
             ),
           ),
