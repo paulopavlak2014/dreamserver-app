@@ -263,10 +263,20 @@ class _HomePageState extends State<_HomePage> {
       _movies = r[1] as List<Movie>;
       _loading = false;
     });
+    // Foca no primeiro canal ao carregar
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _live.isNotEmpty) {
+        _firstChannelFocus.requestFocus();
+      }
+    });
+    ;
   }
 
   @override
   void dispose() { _pageCtrl.dispose(); super.dispose(); }
+
+  // FocusNode para o primeiro canal
+  final _firstChannelFocus = FocusNode();
 
   @override
   Widget build(BuildContext context) {
@@ -285,7 +295,8 @@ class _HomePageState extends State<_HomePage> {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           itemCount: _live.take(10).length,
-          itemBuilder: (_, i) => _ChannelCard(channel: _live[i], service: widget.service),
+          itemBuilder: (_, i) => _ChannelCard(channel: _live[i], service: widget.service,
+              firstChannelFocus: _firstChannelFocus, index: i),
         ))),
       ],
       if (_movies.isNotEmpty) ...[
@@ -419,17 +430,31 @@ class _SectionHeader extends StatelessWidget {
     ]),
   );
 }
-
 class _ChannelCard extends StatefulWidget {
   final Channel channel;
   final XtreamService service;
-  const _ChannelCard({required this.channel, required this.service});
+  final FocusNode firstChannelFocus;
+  final int index;
+
+  const _ChannelCard({required this.channel, required this.service, required this.firstChannelFocus, required this.index});
+
   @override
   State<_ChannelCard> createState() => _ChannelCardState();
 }
 
 class _ChannelCardState extends State<_ChannelCard> {
   bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Apenas o primeiro canal (índice 0) recebe foco inicial
+    if (widget.index == 0 && widget.firstChannelFocus != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.firstChannelFocus.requestFocus();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
