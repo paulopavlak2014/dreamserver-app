@@ -53,7 +53,17 @@ class _LoginScreenState extends State<LoginScreen> {
       password: _passCtrl.text.trim(),
     );
 
-    final ok = await svc.authenticate();
+    bool ok;
+    try {
+      ok = await svc.authenticate();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.';
+      });
+      return;
+    }
     if (!mounted) return;
 
     if (ok) {

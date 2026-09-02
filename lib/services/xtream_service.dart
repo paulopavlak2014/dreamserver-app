@@ -67,7 +67,7 @@ class XtreamService {
   // ── Auth ──────────────────────────────────────────────────────────────────
   Future<bool> authenticate() async {
     try {
-      final r = await http.get(Uri.parse(_api)).timeout(const Duration(seconds: 15));
+      final r = await http.get(Uri.parse(_api)).timeout(const Duration(seconds: 30));
       if (r.statusCode == 200) {
         final data = jsonDecode(r.body);
         return data['user_info'] != null &&
