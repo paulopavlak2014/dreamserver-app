@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'player_screen.dart';
 
 const _kRed = Color(0xFFE50914);
@@ -15,22 +16,18 @@ class SportsScreen extends StatefulWidget {
 }
 
 class _SportsScreenState extends State<SportsScreen> {
-  @override
-  void initState() {
-    super.initState();
-    // Abre o player automaticamente (vídeo já rodando, sem precisar dar play)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const PlayerScreen(
-            title: 'Jogos de Hoje',
-            url: _sportsUrl,
-          ),
+  bool _focused = false;
+
+  void _open() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PlayerScreen(
+          title: 'Jogos de Hoje',
+          url: _sportsUrl,
         ),
-      );
-    });
+      ),
+    );
   }
 
   @override
@@ -48,38 +45,46 @@ class _SportsScreenState extends State<SportsScreen> {
                 style: TextStyle(color: Colors.grey, fontSize: 12)),
             const SizedBox(height: 24),
             Center(
-              child: GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const PlayerScreen(
-                      title: 'Jogos de Hoje',
-                      url: _sportsUrl,
-                    ),
+              child: FocusableActionDetector(
+                autofocus: true,
+                onShowFocusHighlight: (v) => setState(() => _focused = v),
+                actions: {
+                  ActivateIntent: CallbackAction<ActivateIntent>(
+                    onInvoke: (_) { _open(); return null; },
                   ),
-                ),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 40),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF161616),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF2A2A2A)),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: const BoxDecoration(color: _kRed, shape: BoxShape.circle),
-                        child: const Icon(Icons.play_arrow, color: Colors.white, size: 36),
+                },
+                child: GestureDetector(
+                  onTap: _open,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 40),
+                    decoration: BoxDecoration(
+                      color: _focused ? _kRed.withOpacity(0.2) : const Color(0xFF161616),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: _focused ? _kRed : const Color(0xFF2A2A2A),
+                        width: _focused ? 3 : 1,
                       ),
-                      const SizedBox(height: 16),
-                      const Text('Assistir Jogos de Hoje',
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
-                      const Text('Inicia automaticamente ao abrir',
-                          style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    ],
+                      boxShadow: _focused
+                          ? [BoxShadow(color: _kRed.withOpacity(0.4), blurRadius: 14, spreadRadius: 1)]
+                          : null,
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: const BoxDecoration(color: _kRed, shape: BoxShape.circle),
+                          child: const Icon(Icons.play_arrow, color: Colors.white, size: 36),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text('Assistir Jogos de Hoje',
+                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        const Text('Pressione OK para assistir',
+                            style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      ],
+                    ),
                   ),
                 ),
               ),
