@@ -75,6 +75,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _refreshContent() async {
     setState(() => _refreshing = true);
     try {
+      // Limpa cache em disco E memória para forçar nova consulta ao servidor
+      await widget.service.clearAllCache();
       await Future.wait([
         widget.service.getLiveChannels(),
         widget.service.getMovies(),

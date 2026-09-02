@@ -94,7 +94,16 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset('assets/logo_ds.jpg', height: 140, fit: BoxFit.contain),
+                Image.asset(
+                  'assets/logo_ds.jpg',
+                  height: 140,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.play_circle_filled,
+                    color: Color(0xFFE50914),
+                    size: 96,
+                  ),
+                ),
                 const SizedBox(height: 36),
 
                 // ===== CAMPO USUÁRIO =====

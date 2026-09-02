@@ -22,6 +22,10 @@ class XtreamService {
   List<Category>? _memVodCats;
   List<Category>? _memSeriesCats;
 
+  /// Flags para evitar complementações paralelas
+  bool _moviesBgRunning = false;
+  bool _seriesBgRunning = false;
+
   /// Limpa cache de memória e disco (chamado pelo botão Atualizar e Limpar cache)
   void clearMemoryCache() {
     _memChannels  = null;
@@ -30,6 +34,18 @@ class XtreamService {
     _memLiveCats  = null;
     _memVodCats   = null;
     _memSeriesCats = null;
+  }
+
+  /// Limpa TUDO (memória + disco). Usado pelo botão "Atualizar conteúdos"
+  /// para forçar nova consulta ao servidor.
+  Future<void> clearAllCache() async {
+    clearMemoryCache();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((k) =>
+          k.startsWith('cache_') || k.endsWith('_ts')).toList();
+      for (final k in keys) await prefs.remove(k);
+    } catch (_) {}
   }
 
   // ── Cache em disco (30 min) ───────────────────────────────────────────────
@@ -41,7 +57,12 @@ class XtreamService {
       final ts = prefs.getInt('${key}_ts');
       if (ts == null) return null;
       final age = DateTime.now().millisecondsSinceEpoch - ts;
-      if (age > _cacheTtl.inMilliseconds) return null;
+      if (age > _cacheTtl.inMilliseconds) {
+        // Limpa entradas expiradas para não acumular lixo em disco
+        await prefs.remove(key);
+        await prefs.remove('${key}_ts');
+        return null;
+      }
       return prefs.getString(key);
     } catch (_) { return null; }
   }
@@ -54,15 +75,7 @@ class XtreamService {
     } catch (_) {}
   }
 
-  Future<void> clearCache() async {
-    clearMemoryCache();
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys().where((k) =>
-          k.startsWith('cache_') || k.endsWith('_ts')).toList();
-      for (final k in keys) await prefs.remove(k);
-    } catch (_) {}
-  }
+  Future<void> clearCache() => clearAllCache();
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   Future<bool> authenticate() async {
@@ -219,32 +232,45 @@ class XtreamService {
   }
 
   void _complementMoviesInBackground(List<Movie> existing, List<Category> cats) async {
-    final seen = existing.map((m) => m.id).toSet();
-    final extra = <Movie>[];
-    const batchSize = 5;
-    for (var i = 0; i < cats.length; i += batchSize) {
-      final batch = cats.skip(i).take(batchSize).toList();
-      final lists = await Future.wait(batch.map((c) => _getMoviesRaw(c.id)));
-      for (final list in lists) {
-        for (final m in list) {
-          if (m.id.isNotEmpty && seen.add(m.id)) extra.add(m);
+    if (_moviesBgRunning) return;
+    _moviesBgRunning = true;
+    try {
+      final seen = existing.map((m) => m.id).toSet();
+      final extra = <Movie>[];
+      const batchSize = 5;
+      for (var i = 0; i < cats.length; i += batchSize) {
+        final batch = cats.skip(i).take(batchSize).toList();
+        final lists = await Future.wait(batch.map((c) => _getMoviesRaw(c.id)));
+        for (final list in lists) {
+          for (final m in list) {
+            if (m.id.isNotEmpty && seen.add(m.id)) extra.add(m);
+          }
         }
       }
-    }
-    if (extra.isNotEmpty) {
-      _memMovies = [...existing, ...extra];
-      await _cacheMovies(_memMovies!);
+      if (extra.isNotEmpty) {
+        _memMovies = [...existing, ...extra];
+        await _cacheMovies(_memMovies!);
+      }
+    } finally {
+      _moviesBgRunning = false;
     }
   }
 
   Future<void> _cacheMovies(List<Movie> list) async {
     try {
-      final slim = list.map((m) => {
-        'stream_id': m.id, 'name': m.name,
-        'stream_url': m.streamUrl, 'stream_icon': m.cover ?? '',
+      // Guarda os dados completos para não perder plot/genre/rating/year
+      // ao ler do cache.
+      final full = list.map((m) => {
+        'stream_id': m.id,
+        'name': m.name,
+        'stream_icon': m.cover ?? '',
         'category_id': m.categoryId ?? '',
+        'plot': m.plot ?? '',
+        'genre': m.genre ?? '',
+        'rating': m.rating ?? '',
+        'year': m.year ?? '',
       }).toList();
-      await _setCache('cache_movies', jsonEncode(slim));
+      await _setCache('cache_movies', jsonEncode(full));
     } catch (_) {}
   }
 
@@ -330,21 +356,27 @@ class XtreamService {
   }
 
   void _complementSeriesInBackground(List<Series> existing, List<Category> cats) async {
-    final seen = existing.map((s) => s.id).toSet();
-    final extra = <Series>[];
-    const batchSize = 5;
-    for (var i = 0; i < cats.length; i += batchSize) {
-      final batch = cats.skip(i).take(batchSize).toList();
-      final lists = await Future.wait(batch.map((c) => _getSeriesRaw(c.id)));
-      for (final list in lists) {
-        for (final s in list) {
-          if (s.id.isNotEmpty && seen.add(s.id)) extra.add(s);
+    if (_seriesBgRunning) return;
+    _seriesBgRunning = true;
+    try {
+      final seen = existing.map((s) => s.id).toSet();
+      final extra = <Series>[];
+      const batchSize = 5;
+      for (var i = 0; i < cats.length; i += batchSize) {
+        final batch = cats.skip(i).take(batchSize).toList();
+        final lists = await Future.wait(batch.map((c) => _getSeriesRaw(c.id)));
+        for (final list in lists) {
+          for (final s in list) {
+            if (s.id.isNotEmpty && seen.add(s.id)) extra.add(s);
+          }
         }
       }
-    }
-    if (extra.isNotEmpty) {
-      _memSeries = [...existing, ...extra];
-      await _cacheSeries(_memSeries!);
+      if (extra.isNotEmpty) {
+        _memSeries = [...existing, ...extra];
+        await _cacheSeries(_memSeries!);
+      }
+    } finally {
+      _seriesBgRunning = false;
     }
   }
 

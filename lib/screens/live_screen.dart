@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -51,6 +52,9 @@ class _M3UParser {
   }
 }
 
+/// Função top-level usada com compute() para parsear M3U em isolate.
+List<_M3UChannel> _parseM3UInIsolate(String content) => _M3UParser.parse(content);
+
 // ── LiveScreen ────────────────────────────────────────────────────────────────
 
 class LiveScreen extends StatefulWidget {
@@ -100,7 +104,13 @@ class _LiveScreenState extends State<LiveScreen> {
             .get(Uri.parse(m3uUrl))
             .timeout(const Duration(seconds: 20));
         if (res.statusCode == 200) {
-          m3u = _M3UParser.parse(utf8.decode(res.bodyBytes));
+          final body = utf8.decode(res.bodyBytes);
+          // Parse em isolate para listas grandes (>100KB) para não travar UI
+          if (body.length > 100000) {
+            m3u = await compute(_parseM3UInIsolate, body);
+          } else {
+            m3u = _M3UParser.parse(body);
+          }
         }
       } catch (_) {}
     }
