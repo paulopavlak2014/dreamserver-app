@@ -19,6 +19,7 @@ class PlayerScreen extends StatefulWidget {
   final String? channelId;
   final XtreamService? service;
   final bool autoPlay;
+  final bool isVod;
 
   const PlayerScreen({
     super.key,
@@ -28,6 +29,7 @@ class PlayerScreen extends StatefulWidget {
     this.channelId,
     this.service,
     this.autoPlay = true,
+    this.isVod = false,
   });
 
   @override
@@ -114,6 +116,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
     });
 
+    // Para VOD (filmes/séries mp4): pula o pré-buffer, toca direto
+    if (widget.isVod) {
+      _preBuffering = false;
+      _buffering = false;
+    }
+
     _open();
     _scheduleHide();
     _maybeShowOsd();
@@ -121,6 +129,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // ── Reconexão automática ────────────────────────────────
   void _handleError() {
+    // VOD: erro simples, sem retry agressivo de canal ao vivo
+    if (widget.isVod) {
+      setState(() { _error = true; _retrying = false; _preBuffering = false; });
+      return;
+    }
     if (_retryCount >= _kMaxRetries) {
       setState(() { _error = true; _retrying = false; _preBuffering = false; });
       return;
@@ -140,6 +153,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _maybeShowOsd() async {
+    if (widget.isVod) return; // VOD não tem OSD de canal ao vivo
     if (widget.channelId == null || widget.service == null) return;
     setState(() => _showOsd = true);
     widget.service!.getCurrentProgram(widget.channelId!).then((p) {

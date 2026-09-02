@@ -286,7 +286,7 @@ class HomePageState extends State<_HomePage> {
 
   void _openMovie(Movie m) {
     Navigator.push(context, MaterialPageRoute(
-      builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl),
+      builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl, isVod: true),
     ));
   }
 
@@ -366,7 +366,7 @@ class HomePageState extends State<_HomePage> {
                         final url = widget.service.seriesEpisodeUrl(s.id, id, ext);
                         Navigator.push(context,
                             MaterialPageRoute(
-                                builder: (_) => PlayerScreen(title: title, url: url)));
+                                builder: (_) => PlayerScreen(title: title, url: url, isVod: true)));
                       },
                     );
                   },

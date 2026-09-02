@@ -96,7 +96,7 @@ class MoviesScreenState extends State<MoviesScreen> {
 
   void _openMovie(Movie m) {
     Navigator.push(context,
-        MaterialPageRoute(builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl)));
+        MaterialPageRoute(builder: (_) => PlayerScreen(title: m.name, url: m.streamUrl, isVod: true)));
   }
 
   @override

@@ -170,7 +170,7 @@ class SeriesScreenState extends State<SeriesScreen> {
                         final url = widget.service.seriesEpisodeUrl(s.id, id, ext);
                         Navigator.push(context,
                             MaterialPageRoute(
-                                builder: (_) => PlayerScreen(title: title, url: url)));
+                                builder: (_) => PlayerScreen(title: title, url: url, isVod: true)));
                       },
                     );
                   },
